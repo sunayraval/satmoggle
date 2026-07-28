@@ -21,72 +21,85 @@ export default function App() {
   // Initialize or fetch user session (Guest play allowed without login!)
   useEffect(() => {
     const initGuestSession = () => {
-      const savedUser = localStorage.getItem('satmoggle_guest_user');
-      const savedProfile = localStorage.getItem('satmoggle_guest_profile');
-      if (savedUser && savedProfile) {
-        setUser(JSON.parse(savedUser));
-        setProfile(JSON.parse(savedProfile));
-      } else {
-        const guestId = 'usr_guest_' + Math.random().toString(36).substring(2, 7);
-        const randomNames = ['SpeedDemon', 'SAT_Master', 'CalcWizard', 'GrammarGod', 'ApexStudent', 'ViteChallenger'];
-        const chosenName = randomNames[Math.floor(Math.random() * randomNames.length)] + '_' + Math.floor(10 + Math.random() * 90);
-        
-        const defaultUser = { uid: guestId, email: 'guest@satmoggle.edu', isAnonymous: true };
-        const defaultProfile = {
-          uid: guestId,
-          username: chosenName,
-          email: 'guest@satmoggle.edu',
-          eloRating: 1250,
-          gamesPlayed: 14,
-          wins: 9,
-          winRate: 64.3,
-          isGuest: true,
-          subjectStats: {
-            math: { correct: 48, total: 65, elo: 1265 },
-            english: { correct: 42, total: 55, elo: 1235 }
-          },
-          createdAt: new Date().toISOString()
-        };
-        localStorage.setItem('satmoggle_guest_user', JSON.stringify(defaultUser));
-        localStorage.setItem('satmoggle_guest_profile', JSON.stringify(defaultProfile));
-        setUser(defaultUser);
-        setProfile(defaultProfile);
+      try {
+        const savedUser = localStorage.getItem('satmoggle_guest_user');
+        const savedProfile = localStorage.getItem('satmoggle_guest_profile');
+        if (savedUser && savedProfile) {
+          setUser(JSON.parse(savedUser));
+          setProfile(JSON.parse(savedProfile));
+        } else {
+          const guestId = 'usr_guest_' + Math.random().toString(36).substring(2, 7);
+          const randomNames = ['SpeedDemon', 'SAT_Master', 'CalcWizard', 'GrammarGod', 'ApexStudent', 'ViteChallenger'];
+          const chosenName = randomNames[Math.floor(Math.random() * randomNames.length)] + '_' + Math.floor(10 + Math.random() * 90);
+          
+          const defaultUser = { uid: guestId, email: 'guest@satmoggle.edu', isAnonymous: true };
+          const defaultProfile = {
+            uid: guestId,
+            username: chosenName,
+            email: 'guest@satmoggle.edu',
+            eloRating: 1250,
+            gamesPlayed: 14,
+            wins: 9,
+            winRate: 64.3,
+            isGuest: true,
+            subjectStats: {
+              math: { correct: 48, total: 65, elo: 1265 },
+              english: { correct: 42, total: 55, elo: 1235 }
+            },
+            createdAt: new Date().toISOString()
+          };
+          localStorage.setItem('satmoggle_guest_user', JSON.stringify(defaultUser));
+          localStorage.setItem('satmoggle_guest_profile', JSON.stringify(defaultProfile));
+          setUser(defaultUser);
+          setProfile(defaultProfile);
+        }
+      } catch (err) {
+        console.error("Local storage error:", err);
       }
     };
 
-    if (isDemoMode) {
+    // If Firebase Auth is not available or we are in Demo Mode, fallback immediately to prevent crashing
+    if (!auth || isDemoMode) {
       initGuestSession();
       return;
     }
 
     // Live Cloud Firebase Mode
-    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
-      if (fbUser) {
-        setUser(fbUser);
-        subscribeToUserProfile(fbUser.uid, (profData) => {
-          if (profData) {
-            setProfile(profData);
-          } else {
-            // Fallback profile if Firestore document is pending
-            setProfile({
-              uid: fbUser.uid,
-              username: fbUser.displayName || fbUser.email?.split('@')[0] || 'Player',
-              email: fbUser.email || 'guest@satmoggle.edu',
-              eloRating: 1200,
-              gamesPlayed: 0,
-              wins: 0,
-              winRate: 0,
-              isGuest: fbUser.isAnonymous
-            });
-          }
-        });
-      } else {
-        // Automatically default to Guest Play if no cloud auth session!
+    try {
+      const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
+        if (fbUser) {
+          setUser(fbUser);
+          subscribeToUserProfile(fbUser.uid, (profData) => {
+            if (profData) {
+              setProfile(profData);
+            } else {
+              // Fallback profile if Firestore document is pending
+              setProfile({
+                uid: fbUser.uid,
+                username: fbUser.displayName || fbUser.email?.split('@')[0] || 'Player',
+                email: fbUser.email || 'guest@satmoggle.edu',
+                eloRating: 1200,
+                gamesPlayed: 0,
+                wins: 0,
+                winRate: 0,
+                isGuest: fbUser.isAnonymous
+              });
+            }
+          });
+        } else {
+          // Automatically default to Guest Play if no cloud auth session!
+          initGuestSession();
+        }
+      }, (error) => {
+        console.error("Firebase onAuthStateChanged error:", error);
         initGuestSession();
-      }
-    });
+      });
 
-    return () => unsubscribeAuth();
+      return () => unsubscribeAuth();
+    } catch (err) {
+      console.error("Critical error in App Auth Effect:", err);
+      initGuestSession();
+    }
   }, []);
 
   const handleAuthSuccess = () => {

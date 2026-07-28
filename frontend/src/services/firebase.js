@@ -1,10 +1,8 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
   signInAnonymously, 
   signOut as fbSignOut, 
   onAuthStateChanged,
@@ -16,11 +14,7 @@ import {
   getDoc, 
   setDoc, 
   updateDoc, 
-  onSnapshot, 
-  collection, 
-  query, 
-  orderBy, 
-  limit 
+  onSnapshot
 } from 'firebase/firestore';
 import { 
   getDatabase, 
@@ -28,14 +22,11 @@ import {
   set, 
   get, 
   update, 
-  remove, 
-  onValue, 
-  onDisconnect, 
-  serverTimestamp 
+  onValue
 } from 'firebase/database';
 
 const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || '';
-export const isDemoMode = !apiKey || apiKey.includes('DEMO_KEY') || apiKey.includes('YOUR_API_KEY');
+let isDemoMode = !apiKey || apiKey.includes('DEMO_KEY') || apiKey.includes('YOUR_API_KEY');
 
 const firebaseConfig = {
   apiKey: apiKey,
@@ -49,21 +40,36 @@ const firebaseConfig = {
 
 let app, auth, db, rtdb;
 
+// Bulletproof Firebase Initialization
 if (!isDemoMode) {
   try {
-    app = initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
-    rtdb = getDatabase(app);
-    console.log('🔥 Live Firebase SDK initialized successfully.');
+    app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+    
+    // Safely try to initialize Auth
+    try { auth = getAuth(app); } catch (e) { console.warn("Firebase Auth init failed:", e); }
+    
+    // Safely try to initialize Firestore
+    try { db = getFirestore(app); } catch (e) { console.warn("Firestore init failed:", e); }
+    
+    // Safely try to initialize Realtime Database
+    try { 
+      if (firebaseConfig.databaseURL && !firebaseConfig.databaseURL.includes('undefined')) {
+        rtdb = getDatabase(app); 
+      } else {
+        throw new Error("Missing or invalid Realtime Database URL");
+      }
+    } catch (e) { console.warn("Realtime Database init failed:", e); }
+    
+    console.log(`🔥 Firebase SDK Initialized. Auth: ${!!auth}, Firestore: ${!!db}, RTDB: ${!!rtdb}`);
   } catch (err) {
-    console.error('Failed to initialize live Firebase SDK:', err);
+    console.error('❌ Critical Firebase SDK Initialization Failure. Forcing Demo Mode.', err);
+    isDemoMode = true; // Force demo mode if core app fails
   }
 } else {
-  console.warn('⚠️ SATmoggle is running in DEMO / LOCAL MODE. Configure VITE_FIREBASE_* in .env to connect live cloud database.');
+  console.warn('⚠️ SATmoggle is running in DEMO / LOCAL MODE.');
 }
 
-export { app, auth, db, rtdb };
+export { app, auth, db, rtdb, isDemoMode };
 
 // --- DEMO / MOCK STORAGE FOR LOCAL TESTING ---
 const MOCK_USER_KEY = 'satmoggle_mock_user';
@@ -101,7 +107,7 @@ export function getMockProfile(uid) {
 
 // --- AUTH SERVICES ---
 export async function loginWithEmail(email, password) {
-  if (isDemoMode) {
+  if (isDemoMode || !auth) {
     const user = { uid: 'usr_' + btoa(email).slice(0,8), email, isAnonymous: false };
     localStorage.setItem(MOCK_USER_KEY, JSON.stringify(user));
     const profile = getMockProfile(user.uid);
@@ -116,7 +122,7 @@ export async function loginWithEmail(email, password) {
 export const loginUser = loginWithEmail;
 
 export async function registerWithEmail(email, password, username) {
-  if (isDemoMode) {
+  if (isDemoMode || !auth) {
     const user = { uid: 'usr_' + btoa(email).slice(0,8), email, isAnonymous: false };
     localStorage.setItem(MOCK_USER_KEY, JSON.stringify(user));
     const profile = {
@@ -141,7 +147,7 @@ export async function registerWithEmail(email, password, username) {
 export const registerUser = registerWithEmail;
 
 export async function loginAnonymously(username = 'GuestChallenger') {
-  if (isDemoMode) {
+  if (isDemoMode || !auth) {
     const user = { uid: `usr_anon_${Math.floor(Math.random()*90000+10000)}`, isAnonymous: true };
     localStorage.setItem(MOCK_USER_KEY, JSON.stringify(user));
     const profile = {
@@ -163,7 +169,7 @@ export async function loginAnonymously(username = 'GuestChallenger') {
 }
 
 export async function logoutUser() {
-  if (isDemoMode) {
+  if (isDemoMode || !auth) {
     localStorage.removeItem(MOCK_USER_KEY);
     return;
   }
@@ -172,7 +178,7 @@ export async function logoutUser() {
 
 // --- FIRESTORE PROFILE SERVICES ---
 export async function createProfileInFirestore(uid, { username, email = null }) {
-  if (isDemoMode) return getMockProfile(uid);
+  if (isDemoMode || !db) return getMockProfile(uid);
   const userRef = doc(db, 'users', uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) {
@@ -197,14 +203,14 @@ export async function createProfileInFirestore(uid, { username, email = null }) 
 }
 
 export async function getUserProfile(uid) {
-  if (isDemoMode) return getMockProfile(uid);
+  if (isDemoMode || !db) return getMockProfile(uid);
   const userRef = doc(db, 'users', uid);
   const snap = await getDoc(userRef);
   return snap.exists() ? snap.data() : null;
 }
 
 export function subscribeToUserProfile(uid, callback) {
-  if (isDemoMode) {
+  if (isDemoMode || !db) {
     callback(getMockProfile(uid));
     return () => {};
   }
@@ -215,7 +221,7 @@ export function subscribeToUserProfile(uid, callback) {
 }
 
 export async function updateUserEloAndStats(uid, { eloDelta, isWin, subject = 'math', correctAnswers = 0, totalQuestions = 0 }) {
-  if (isDemoMode) {
+  if (isDemoMode || !db) {
     const profile = getMockProfile(uid);
     profile.eloRating = Math.max(100, (profile.eloRating || 1200) + eloDelta);
     profile.gamesPlayed = (profile.gamesPlayed || 0) + 1;
@@ -231,30 +237,33 @@ export async function updateUserEloAndStats(uid, { eloDelta, isWin, subject = 'm
     return profile;
   }
 
-  const userRef = doc(db, 'users', uid);
-  const snap = await getDoc(userRef);
-  if (!snap.exists()) return;
-  const data = snap.data();
+  try {
+    const userRef = doc(db, 'users', uid);
+    const snap = await getDoc(userRef);
+    if (!snap.exists()) return;
+    const data = snap.data();
 
-  const newElo = Math.max(100, (data.eloRating || 1200) + eloDelta);
-  const gamesPlayed = (data.gamesPlayed || 0) + 1;
-  const wins = (data.wins || 0) + (isWin ? 1 : 0);
-  const winRate = Number(((wins / gamesPlayed) * 100).toFixed(1));
+    const newElo = Math.max(100, (data.eloRating || 1200) + eloDelta);
+    const gamesPlayed = (data.gamesPlayed || 0) + 1;
+    const wins = (data.wins || 0) + (isWin ? 1 : 0);
+    const winRate = Number(((wins / gamesPlayed) * 100).toFixed(1));
 
-  const subjectStats = data.subjectStats || { math: { correct: 0, total: 0, elo: 1200 }, english: { correct: 0, total: 0, elo: 1200 } };
-  if (subjectStats[subject]) {
-    subjectStats[subject].correct += correctAnswers;
-    subjectStats[subject].total += totalQuestions;
-    subjectStats[subject].elo = Math.max(100, (subjectStats[subject].elo || 1200) + eloDelta);
+    const subjectStats = data.subjectStats || { math: { correct: 0, total: 0, elo: 1200 }, english: { correct: 0, total: 0, elo: 1200 } };
+    if (subjectStats[subject]) {
+      subjectStats[subject].correct += correctAnswers;
+      subjectStats[subject].total += totalQuestions;
+      subjectStats[subject].elo = Math.max(100, (subjectStats[subject].elo || 1200) + eloDelta);
+    }
+
+    await updateDoc(userRef, { eloRating: newElo, gamesPlayed, wins, winRate, subjectStats });
+  } catch (err) {
+    console.error("Failed to update Firestore stats:", err);
   }
-
-  await updateDoc(userRef, { eloRating: newElo, gamesPlayed, wins, winRate, subjectStats });
 }
 
 // --- REALTIME DATABASE ROOM SERVICES ---
 export function getRoomsList(callback) {
-  if (isDemoMode) {
-    // Return sample public rooms in demo mode
+  if (isDemoMode || !rtdb) {
     const demoRooms = {
       'SAT101': {
         hostId: 'usr_demo_host1',
@@ -277,10 +286,16 @@ export function getRoomsList(callback) {
     return () => {};
   }
 
-  const roomsRef = ref(rtdb, 'rooms');
-  return onValue(roomsRef, (snap) => {
-    callback(snap.val() || {});
-  });
+  try {
+    const roomsRef = ref(rtdb, 'rooms');
+    return onValue(roomsRef, (snap) => {
+      callback(snap.val() || {});
+    });
+  } catch (err) {
+    console.error("Failed to fetch rooms:", err);
+    callback({});
+    return () => {};
+  }
 }
 
 export async function createRoom(roomCode, hostId, hostName, settings) {
@@ -295,7 +310,7 @@ export async function createRoom(roomCode, hostId, hostName, settings) {
       difficulty: settings.difficulty || 'MIXED',
       gameSize: settings.gameSize || 10,
       subject: settings.subject || 'both',
-      bombTimer: settings.bombTimer || 75 // Default 1:15 as approved by user
+      bombTimer: settings.bombTimer || 75
     },
     players: {
       [hostId]: {
@@ -309,7 +324,7 @@ export async function createRoom(roomCode, hostId, hostName, settings) {
     }
   };
 
-  if (isDemoMode) {
+  if (isDemoMode || !rtdb) {
     const rooms = JSON.parse(localStorage.getItem(MOCK_ROOMS_KEY) || '{}');
     rooms[roomCode] = roomData;
     localStorage.setItem(MOCK_ROOMS_KEY, JSON.stringify(rooms));
@@ -322,7 +337,7 @@ export async function createRoom(roomCode, hostId, hostName, settings) {
 }
 
 export async function joinRoom(roomCode, player) {
-  if (isDemoMode) {
+  if (isDemoMode || !rtdb) {
     const rooms = JSON.parse(localStorage.getItem(MOCK_ROOMS_KEY) || '{}');
     if (!rooms[roomCode]) throw new Error('Room not found!');
     rooms[roomCode].players = rooms[roomCode].players || {};
@@ -355,10 +370,9 @@ export async function joinRoom(roomCode, player) {
 }
 
 export function subscribeToRoom(roomCode, callback) {
-  if (isDemoMode) {
+  if (isDemoMode || !rtdb) {
     const rooms = JSON.parse(localStorage.getItem(MOCK_ROOMS_KEY) || '{}');
     callback(rooms[roomCode] || null);
-    // Simple polling for demo mode changes
     const interval = setInterval(() => {
       const r = JSON.parse(localStorage.getItem(MOCK_ROOMS_KEY) || '{}');
       callback(r[roomCode] || null);
@@ -373,7 +387,7 @@ export function subscribeToRoom(roomCode, callback) {
 }
 
 export async function updateRoomStatus(roomCode, status, gameState = null) {
-  if (isDemoMode) {
+  if (isDemoMode || !rtdb) {
     const rooms = JSON.parse(localStorage.getItem(MOCK_ROOMS_KEY) || '{}');
     if (rooms[roomCode]) {
       rooms[roomCode].status = status;
