@@ -4,8 +4,8 @@ export default function GlassCard({ children, className = '', hoverEffect = true
   const baseClass = hoverEffect ? 'glass-card' : 'glass-panel';
   return (
     <div 
-      className={`${baseClass} p-6 ${className}`} 
-      style={style}
+      className={`${baseClass} ${className}`} 
+      style={{ padding: '1.5rem', ...style }}
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}

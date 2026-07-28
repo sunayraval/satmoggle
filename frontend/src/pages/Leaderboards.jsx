@@ -18,43 +18,49 @@ export default function Leaderboards({ user, profile }) {
     { rank: 10, username: 'RookieTactician', elo: 1180, winRate: 55.0, wins: 11, subject: 'both', badge: '🥉 Bronze Initiate' },
   ];
 
-  // If current profile exists and isn't in top 10, inject them at rank 8 or replace demo
+  // Inject current user/guest into rankings if not already in list
   const displayList = [...demoLeaderboard];
-  if (profile && !displayList.some(p => p.username === profile.username)) {
+  const myName = profile?.username || user?.displayName || 'You';
+  const myElo = profile?.eloRating || 1250;
+  const myWinRate = profile?.winRate || 64.3;
+  const myWins = profile?.wins || 9;
+
+  if (!displayList.some(p => p.username === myName)) {
     displayList[7] = {
       rank: 8,
-      username: profile.username || 'You',
-      elo: profile.eloRating || 1250,
-      winRate: profile.winRate || 66.7,
-      wins: profile.wins || 8,
+      username: myName,
+      elo: myElo,
+      winRate: myWinRate,
+      wins: myWins,
       subject: 'both',
-      badge: (profile.eloRating || 1250) >= 1400 ? '💎 Diamond Elite' : (profile.eloRating || 1250) >= 1300 ? '⚡ Platinum Elite' : '🥈 Silver Competitor',
+      badge: myElo >= 1400 ? '💎 Diamond Elite' : myElo >= 1300 ? '⚡ Platinum Elite' : '🥈 Silver Competitor',
       isMe: true
     };
-  } else if (profile) {
-    const idx = displayList.findIndex(p => p.username === profile.username);
+  } else {
+    const idx = displayList.findIndex(p => p.username === myName);
     if (idx !== -1) displayList[idx].isMe = true;
   }
 
   const getRankBadgeIcon = (rank) => {
-    if (rank === 1) return <div className="w-8 h-8 rounded-full bg-amber-400 text-black flex items-center justify-center font-black shadow-lg shadow-amber-400/40">1</div>;
-    if (rank === 2) return <div className="w-8 h-8 rounded-full bg-slate-300 text-black flex items-center justify-center font-black shadow-md">2</div>;
-    if (rank === 3) return <div className="w-8 h-8 rounded-full bg-amber-700 text-white flex items-center justify-center font-black shadow-md">3</div>;
-    return <div className="w-8 h-8 rounded-full bg-white/5 border border-white/10 text-slate-400 flex items-center justify-center font-bold text-xs">{rank}</div>;
+    if (rank === 1) return <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-amber), #ff8800)', color: '#06080f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, boxShadow: '0 0 15px rgba(255,183,3,0.5)' }}>1</div>;
+    if (rank === 2) return <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #e2e8f0, #94a3b8)', color: '#06080f', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>2</div>;
+    if (rank === 3) return <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg, #d97706, #92400e)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>3</div>;
+    return <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border-glass)', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem' }}>{rank}</div>;
   };
 
   return (
-    <div className="min-h-screen py-12 px-4 max-w-5xl mx-auto font-body">
-      <div className="text-center mb-10">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold mb-3">
-          <Trophy size={14} /> Global Competitive Rankings
+    <div className="container-narrow" style={{ padding: '3rem 1.5rem 6rem' }}>
+      <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+        <div className="badge badge-amber" style={{ marginBottom: '0.75rem' }}>
+          <Trophy size={16} />
+          <span>Global Competitive Rankings</span>
         </div>
-        <h1 className="text-4xl font-extrabold text-white mb-2">SATmoggle Leaderboards</h1>
-        <p className="text-slate-400 text-sm">See where you rank among the top SAT problem solvers across the world.</p>
+        <h1 style={{ fontSize: '2.75rem', marginBottom: '0.5rem' }}>SATmoggle Leaderboards</h1>
+        <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem' }}>See where your FIDE Elo rating ranks among the top SAT problem solvers globally.</p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex rounded-2xl bg-white/5 p-1.5 max-w-md mx-auto mb-10 border border-white/10">
+      {/* Subject Tabs */}
+      <div style={{ display: 'flex', background: 'rgba(255,255,255,0.04)', padding: '0.4rem', borderRadius: '16px', border: '1px solid var(--border-glass)', maxWidth: '480px', margin: '0 auto 2.5rem' }}>
         {[
           { id: 'overall', label: 'Overall Champions' },
           { id: 'math', label: 'Math Masters' },
@@ -63,65 +69,58 @@ export default function Leaderboards({ user, profile }) {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all font-heading ${
-              tab === t.id
-                ? 'bg-gradient-to-r from-amber-500 to-yellow-600 text-black shadow-lg shadow-amber-500/20'
-                : 'text-slate-400 hover:text-white'
-            }`}
+            style={{ flex: 1, padding: '0.75rem 1rem', borderRadius: '12px', fontSize: '0.9rem', fontWeight: 800, fontFamily: 'var(--font-heading)', cursor: 'pointer', transition: 'all 0.2s ease', background: tab === t.id ? 'linear-gradient(135deg, var(--accent-amber), #e67e22)' : 'transparent', color: tab === t.id ? '#06080f' : 'var(--text-muted)', boxShadow: tab === t.id ? '0 0 20px rgba(255,183,3,0.3)' : 'none' }}
           >
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* Leaderboard Table Card */}
-      <GlassCard className="p-6 md:p-8 border-white/10 shadow-2xl">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+      {/* Leaderboard Table Panel */}
+      <div className="glass-panel" style={{ padding: '2rem' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="custom-table">
             <thead>
-              <tr className="border-b border-white/10 text-[11px] font-bold uppercase text-slate-400 font-heading tracking-wider">
-                <th className="pb-4 pl-2">Rank</th>
-                <th className="pb-4">Challenger</th>
-                <th className="pb-4">Elo Rating</th>
-                <th className="pb-4">Win Rate</th>
-                <th className="pb-4 text-right pr-2">Total Victories</th>
+              <tr>
+                <th style={{ width: '70px' }}>Rank</th>
+                <th>Challenger</th>
+                <th>Elo Rating</th>
+                <th>Win Rate</th>
+                <th style={{ textAlign: 'right' }}>Victories</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
+            <tbody>
               {displayList.map((p) => (
-                <tr
-                  key={p.rank}
-                  className={`transition-colors ${p.isMe ? 'bg-cyan-500/15 border-l-4 border-l-cyan-400' : 'hover:bg-white/[0.03]'}`}
-                >
-                  <td className="py-4 pl-2 font-mono">
+                <tr key={p.rank} style={{ background: p.isMe ? 'rgba(0, 242, 255, 0.08)' : 'transparent' }}>
+                  <td style={{ fontFamily: 'monospace' }}>
                     {getRankBadgeIcon(p.rank)}
                   </td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-pink-500 flex items-center justify-center font-bold text-sm text-white">
+                  <td>
+                    <div className="flex-row">
+                      <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'white', fontSize: '1.1rem' }}>
                         {p.username[0].toUpperCase()}
                       </div>
                       <div>
-                        <div className="font-bold text-sm text-white font-heading flex items-center gap-2">
+                        <div className="flex-row" style={{ gap: '0.5rem', fontWeight: 800, color: 'white', fontSize: '1.05rem' }}>
                           <span>{p.username}</span>
-                          {p.isMe && <span className="px-2 py-0.2 rounded text-[10px] font-black bg-cyan-400 text-black uppercase">You</span>}
+                          {p.isMe && <span className="badge badge-cyan" style={{ padding: '0.15rem 0.5rem', fontSize: '0.65rem' }}>You</span>}
                         </div>
-                        <div className="text-[11px] text-slate-400">{p.badge}</div>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{p.badge}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="py-4 font-mono font-black text-base text-cyan-300">
+                  <td style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '1.2rem', color: 'var(--accent-cyan)' }}>
                     ⚡ {p.elo}
                   </td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-20 bg-white/10 h-1.5 rounded-full overflow-hidden">
-                        <div className="bg-emerald-400 h-full" style={{ width: `${p.winRate}%` }} />
+                  <td>
+                    <div className="flex-row" style={{ gap: '0.75rem' }}>
+                      <div style={{ width: '80px', background: 'rgba(255,255,255,0.1)', height: '6px', borderRadius: '99px', overflow: 'hidden' }}>
+                        <div style={{ background: 'var(--accent-emerald)', height: '100%', width: `${p.winRate}%` }} />
                       </div>
-                      <span className="text-xs font-semibold text-slate-300 font-mono">{p.winRate}%</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-main)', fontFamily: 'monospace' }}>{p.winRate}%</span>
                     </div>
                   </td>
-                  <td className="py-4 text-right pr-2 font-mono font-bold text-sm text-amber-400">
+                  <td style={{ textAlign: 'right', fontFamily: 'monospace', fontWeight: 800, fontSize: '1.05rem', color: 'var(--accent-amber)' }}>
                     {p.wins} Wins
                   </td>
                 </tr>
@@ -129,7 +128,7 @@ export default function Leaderboards({ user, profile }) {
             </tbody>
           </table>
         </div>
-      </GlassCard>
+      </div>
     </div>
   );
 }

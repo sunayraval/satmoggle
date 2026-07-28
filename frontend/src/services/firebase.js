@@ -70,7 +70,7 @@ const MOCK_USER_KEY = 'satmoggle_mock_user';
 const MOCK_PROFILE_KEY = 'satmoggle_mock_profile';
 const MOCK_ROOMS_KEY = 'satmoggle_mock_rooms';
 
-function getMockUser() {
+export function getMockUser() {
   const saved = localStorage.getItem(MOCK_USER_KEY);
   if (saved) return JSON.parse(saved);
   const defaultUser = { uid: `usr_demo_${Math.floor(Math.random()*9000+1000)}`, email: 'guest@satmoggle.edu', isAnonymous: true };
@@ -78,7 +78,7 @@ function getMockUser() {
   return defaultUser;
 }
 
-function getMockProfile(uid) {
+export function getMockProfile(uid) {
   const saved = localStorage.getItem(MOCK_PROFILE_KEY);
   if (saved) return JSON.parse(saved);
   const defaultProfile = {
@@ -113,6 +113,7 @@ export async function loginWithEmail(email, password) {
   const cred = await signInWithEmailAndPassword(auth, email, password);
   return cred.user;
 }
+export const loginUser = loginWithEmail;
 
 export async function registerWithEmail(email, password, username) {
   if (isDemoMode) {
@@ -137,6 +138,7 @@ export async function registerWithEmail(email, password, username) {
   await createProfileInFirestore(cred.user.uid, { username, email });
   return cred.user;
 }
+export const registerUser = registerWithEmail;
 
 export async function loginAnonymously(username = 'GuestChallenger') {
   if (isDemoMode) {

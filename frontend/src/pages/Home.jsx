@@ -1,189 +1,202 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import GlassCard from '../components/common/GlassCard';
-import { Trophy, Flame, Zap, ArrowRight, ShieldCheck, Cpu, Users, Bomb, Clock, CheckCircle2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Flame, Zap, Trophy, BookOpen, ArrowRight, ShieldCheck, Clock, Bomb, Sparkles, CheckCircle2, XCircle, Play, Users, BarChart2 } from 'lucide-react';
+import QuestionRenderer from '../components/question/QuestionRenderer';
+import OptionGrid from '../components/question/OptionGrid';
 
-export default function Home({ onOpenAuth, onOpenFirebaseGuide, user, isDemoMode }) {
-  const [stats, setStats] = useState({ total: 97488, math: 48000, english: 49488 });
-  const [loadingStats, setLoadingStats] = useState(true);
+export default function Home({ user, profile, isDemoMode, onOpenAuth, onOpenFirebaseGuide }) {
+  const navigate = useNavigate();
+  const [demoSelected, setDemoSelected] = useState(null);
 
-  useEffect(() => {
-    fetch('/api/questions/stats/summary')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.data?.total > 0) {
-          setStats(data.data);
-        }
-        setLoadingStats(false);
-      })
-      .catch(() => setLoadingStats(false));
-  }, []);
+  const demoQuestion = {
+    id: "demo_q_1",
+    skill_desc: "Algebra • System of Linear Equations",
+    stem: "If $3x + 2y = 18$ and $x - y = 1$, what is the value of $x + y$?",
+    answerOptions: [
+      { key: "A", text: "3" },
+      { key: "B", text: "5" },
+      { key: "C", text: "7" },
+      { key: "D", text: "9" }
+    ],
+    correctKey: "C",
+    rationale: "From $x - y = 1$, we get $x = y + 1$. Substituting into $3(y + 1) + 2y = 18$ gives $5y + 3 = 18$, so $5y = 15$ and $y = 3$. Therefore $x = 4$, and $x + y = 4 + 3 = 7$."
+  };
 
   return (
-    <div className="min-h-screen pb-20 overflow-x-hidden font-body">
+    <div className="container-wide" style={{ paddingBottom: '6rem' }}>
       {/* Hero Section */}
-      <section className="relative pt-12 pb-20 px-4 lg:px-8 max-w-7xl mx-auto text-center">
-        {/* Glow backdrop */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-gradient-to-tr from-purple-600/20 via-cyan-500/20 to-pink-500/20 rounded-full blur-[120px] -z-10 pointer-events-none animate-pulse" />
-
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs font-semibold text-cyan-300 mb-6 shadow-md animate-float">
-          <Zap size={14} className="text-cyan-400" />
-          <span>Next-Gen Advanced Agentic Coding & Educational Gaming</span>
+      <section className="hero-section">
+        <div className="hero-badge animate-float">
+          <Sparkles size={16} style={{ color: 'var(--accent-amber)' }} />
+          <span>The Next-Generation Real-Time SAT Multiplayer Arena</span>
+          <span className="badge badge-cyan" style={{ marginLeft: '0.5rem', fontSize: '0.7rem' }}>2026 Edition</span>
         </div>
 
-        <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight max-w-4xl mx-auto leading-[1.1] mb-6">
-          Master the SAT in <span className="text-gradient-purple">Real-Time Battle</span>.
+        <h1 className="hero-title">
+          Master the Digital SAT.<br />
+          <span className="text-gradient-cyan">Battle in Real Time.</span>
         </h1>
 
-        <p className="text-lg sm:text-xl text-slate-300 max-w-2xl mx-auto mb-10 leading-relaxed font-normal">
-          Solve real College Board problems, battle friends in ticking <strong>Bomb Party eliminations</strong>, climb global Elo leaderboards, or simulate official Digital SAT exams with precision timing.
+        <p className="hero-subtitle">
+          Experience College Board practice like never before. Solve 2,017+ official questions, compete in live multiplayer Bomb Party elimination rooms, and climb global FIDE Elo leaderboards — instantly as a guest or with cloud sync.
         </p>
 
-        {/* Quick CTA Actions */}
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          <Link to="/singleplayer" className="btn-primary text-base px-8 py-4 shadow-xl">
-            <Trophy size={20} className="text-amber-300" />
-            <span>Launch SAT Simulator</span>
+        {/* Action Row */}
+        <div className="hero-actions">
+          <Link to="/singleplayer" className="btn btn-primary btn-lg shadow-glow-cyan">
+            <BookOpen size={20} />
+            <span>Launch SAT Simulator Now</span>
             <ArrowRight size={18} />
           </Link>
-          <Link to="/lobby" className="btn-secondary text-base px-8 py-4 border-cyan-500/30 hover:border-cyan-400 text-cyan-300">
-            <Flame size={20} className="text-pink-500 animate-bounce" />
+
+          <Link to="/lobby" className="btn btn-secondary btn-lg">
+            <Flame size={20} style={{ color: 'var(--accent-pink)' }} />
             <span>Enter Battle Lobby</span>
           </Link>
         </div>
 
-        {/* Live Index Banner */}
-        <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-4xl mx-auto">
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md">
-            <div className="text-2xl sm:text-3xl font-black text-white font-heading text-gradient-cyan">
-              {loadingStats ? '...' : stats.total?.toLocaleString()}
-            </div>
-            <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">SAT Questions Indexed</div>
+        {/* 4 Core Stat Boxes */}
+        <div className="stats-grid">
+          <div className="stat-box">
+            <div className="stat-number text-gradient-cyan">2,017+</div>
+            <div className="stat-label">Official SAT Questions</div>
           </div>
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md">
-            <div className="text-2xl sm:text-3xl font-black text-white font-heading text-emerald-400">
-              {loadingStats ? '...' : stats.math?.toLocaleString()}
-            </div>
-            <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">Math & Grid-ins</div>
+
+          <div className="stat-box">
+            <div className="stat-number text-gradient-purple">100%</div>
+            <div className="stat-label">Frictionless Guest Play</div>
           </div>
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md">
-            <div className="text-2xl sm:text-3xl font-black text-white font-heading text-purple-400">
-              {loadingStats ? '...' : stats.english?.toLocaleString()}
-            </div>
-            <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">Reading & Writing</div>
+
+          <div className="stat-box">
+            <div className="stat-number text-gradient-pink">1:15</div>
+            <div className="stat-label">Default Bomb Party Timer</div>
           </div>
-          <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/10 backdrop-blur-md">
-            <div className="text-2xl sm:text-3xl font-black text-white font-heading text-amber-400">
-              Sub-Sec
-            </div>
-            <div className="text-xs text-slate-400 font-semibold uppercase tracking-wider mt-1">Firebase RTDB Sync</div>
+
+          <div className="stat-box">
+            <div className="stat-number" style={{ color: 'var(--accent-amber)' }}>⚡ 1200</div>
+            <div className="stat-label">Starting FIDE Elo Rating</div>
           </div>
+        </div>
+      </section>
+
+      {/* Interactive Quick Tryout Section */}
+      <section style={{ margin: '3rem auto 5rem', maxWidth: '850px' }}>
+        <div className="glass-panel" style={{ border: '1px solid rgba(0, 242, 255, 0.3)', boxShadow: 'var(--shadow-glow-cyan)' }}>
+          <div className="flex-between" style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-glass)' }}>
+            <div className="flex-row">
+              <span className="badge badge-cyan">⚡ Live Interactive Preview</span>
+              <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{demoQuestion.skill_desc}</span>
+            </div>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-dim)', fontFamily: 'monospace' }}>Try answering below!</span>
+          </div>
+
+          <div style={{ fontSize: '1.2rem', marginBottom: '2rem', lineHeight: 1.8 }}>
+            <QuestionRenderer content={demoQuestion.stem} />
+          </div>
+
+          <OptionGrid
+            options={demoQuestion.answerOptions}
+            selectedKey={demoSelected}
+            onSelect={(key) => setDemoSelected(key)}
+            disabled={demoSelected !== null}
+            correctKey={demoSelected ? demoQuestion.correctKey : null}
+          />
+
+          {demoSelected && (
+            <div style={{ marginTop: '1.5rem', padding: '1.25rem', borderRadius: '12px', background: demoSelected === demoQuestion.correctKey ? 'rgba(0, 245, 160, 0.1)' : 'rgba(255, 51, 102, 0.1)', border: `1px solid ${demoSelected === demoQuestion.correctKey ? 'var(--accent-emerald)' : 'var(--accent-red)'}` }}>
+              <div className="flex-row" style={{ marginBottom: '0.5rem', fontWeight: 800, color: demoSelected === demoQuestion.correctKey ? 'var(--accent-emerald)' : 'var(--accent-red)' }}>
+                {demoSelected === demoQuestion.correctKey ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                <span>{demoSelected === demoQuestion.correctKey ? 'Spot On! Correct Answer.' : `Incorrect. The correct choice was ${demoQuestion.correctKey}.`}</span>
+              </div>
+              <p style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.6 }}>
+                <strong>Explanation:</strong> <QuestionRenderer content={demoQuestion.rationale} />
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
       {/* 3 Core Game Modes Grid */}
-      <section className="px-4 lg:px-8 max-w-7xl mx-auto my-12">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-white mb-3">Choose Your Training Ground</h2>
-          <p className="text-slate-400 max-w-xl mx-auto text-sm">Every question answered boosts your global Elo rating and sharpens your test-day readiness.</p>
+      <section style={{ margin: '4rem 0' }}>
+        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+          <h2 style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>Championship Game Modes</h2>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', maxWidth: '650px', margin: '0 auto' }}>
+            Whether you are grinding solo practice tests or battling friends in high-stakes elimination rooms, SATmoggle provides state-of-the-art tools.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* Card 1: Single Player */}
-          <GlassCard className="flex flex-col justify-between border-t-2 border-t-cyan-400 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl group-hover:bg-cyan-500/20 transition-all" />
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 mb-6 group-hover:scale-110 transition-transform shadow-lg shadow-cyan-500/20">
-                <Trophy size={24} />
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-2">Real SAT Simulator</h3>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                Simulate the exact College Board Digital SAT experience. Enforces official module timing, break periods, bookmark flags, built-in calculator, and reference formula sheets.
-              </p>
-              <ul className="text-xs text-slate-400 space-y-2 mb-8">
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-cyan-400" /> 35-Min Module Timers & Break Rules</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-cyan-400" /> Math Geometry Reference Sheet</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-cyan-400" /> Instant Score Prediction & Elo Boost</li>
-              </ul>
+        <div className="grid-3">
+          {/* Mode 1: Digital SAT Simulator */}
+          <div className="glass-card">
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, var(--accent-cyan), #0088ff)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#06080f', marginBottom: '1.5rem', boxShadow: 'var(--shadow-glow-cyan)' }}>
+              <BookOpen size={28} />
             </div>
-            <Link to="/singleplayer" className="btn-primary w-full py-3 justify-center text-sm shadow-md">
-              <span>Start Solo Training</span>
+            <span className="badge badge-cyan" style={{ alignSelf: 'flex-start', marginBottom: '0.75rem' }}>Single Player Solo</span>
+            <h3 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>Digital SAT Simulator</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, flex: 1, marginBottom: '2rem' }}>
+              Authentic College Board testing interface featuring official 35-minute module countdown timers, built-in interactive calculator popovers, geometry reference sheets, question bookmarking, and automated score predictions (400–1600 scale).
+            </p>
+            <Link to="/singleplayer" className="btn btn-primary btn-block">
+              <span>Start Solo Practice</span>
               <ArrowRight size={16} />
             </Link>
-          </GlassCard>
+          </div>
 
-          {/* Card 2: Classic Battle */}
-          <GlassCard className="flex flex-col justify-between border-t-2 border-t-purple-500 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all" />
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 mb-6 group-hover:scale-110 transition-transform shadow-lg shadow-purple-500/20">
-                <Users size={24} />
-              </div>
-              <h3 className="text-2xl font-bold text-white mb-2">Classic Multiplayer</h3>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                Race friends or public opponents in real-time. Live leaderboards track accuracy and speed simultaneously as you battle through customizable question sets.
-              </p>
-              <ul className="text-xs text-slate-400 space-y-2 mb-8">
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-purple-400" /> Public Room Lobby Browser</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-purple-400" /> 6-Character Private Friend Codes</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-purple-400" /> Live Racing Progress Bars</li>
-              </ul>
+          {/* Mode 2: Bomb Party Royale */}
+          <div className="glass-card" style={{ border: '1px solid rgba(255, 0, 127, 0.3)' }}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, var(--accent-pink), var(--accent-red))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '1.5rem', boxShadow: 'var(--shadow-glow-pink)' }}>
+              <Bomb size={28} />
             </div>
-            <Link to="/lobby" className="btn-secondary w-full py-3 justify-center text-sm border-purple-500/40 text-purple-200 hover:border-purple-400">
-              <span>Browse Public Games</span>
+            <span className="badge badge-pink" style={{ alignSelf: 'flex-start', marginBottom: '0.75rem' }}>Multiplayer Royale</span>
+            <h3 style={{ fontSize: '1.5rem', marginBottom: '0.75rem', color: 'var(--accent-pink)' }}>Bomb Party Royale</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, flex: 1, marginBottom: '2rem' }}>
+              Ticking hot-potato elimination arena! Starts with a customizable 1:15 (75-second) default timer that decays by 1 second each round. Solve your question correctly to defuse and pass the bomb, or explode instantly!
+            </p>
+            <Link to="/lobby?mode=BOMB_PARTY" className="btn btn-danger btn-block">
+              <span>Join Bomb Party Arena</span>
               <ArrowRight size={16} />
             </Link>
-          </GlassCard>
+          </div>
 
-          {/* Card 3: Bomb Party */}
-          <GlassCard className="flex flex-col justify-between border-t-2 border-t-pink-500 relative overflow-hidden group bg-gradient-to-b from-pink-500/[0.05] to-transparent">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-pink-500/10 rounded-full blur-2xl group-hover:bg-pink-500/20 transition-all" />
-            <div>
-              <div className="w-12 h-12 rounded-2xl bg-pink-500/10 border border-pink-500/30 flex items-center justify-center text-pink-400 mb-6 group-hover:scale-110 transition-transform shadow-lg shadow-pink-500/20 animate-pulse-glow">
-                <Bomb size={24} />
-              </div>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-2xl font-bold text-white">Bomb Party Royale</h3>
-                <span className="px-2 py-0.5 rounded text-[10px] font-black bg-pink-500 text-black uppercase tracking-wider">Hot-Potato</span>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed mb-6">
-                The ultimate elimination test! A ticking bomb (default 1:15) passes around the ring. Answer incorrectly or let the timer hit 0, and you explode! Last survivor wins.
-              </p>
-              <ul className="text-xs text-slate-400 space-y-2 mb-8">
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-pink-400" /> Customizable Host Timer (30s–180s)</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-pink-400" /> 1-Second Time Decay Per Round</li>
-                <li className="flex items-center gap-2"><CheckCircle2 size={14} className="text-pink-400" /> Instant Elimination Visual FX</li>
-              </ul>
+          {/* Mode 3: Classic Battle & Elo */}
+          <div className="glass-card">
+            <div style={{ width: '56px', height: '56px', borderRadius: '16px', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '1.5rem', boxShadow: 'var(--shadow-glow-purple)' }}>
+              <Trophy size={28} />
             </div>
-            <Link to="/lobby?mode=BOMB_PARTY" className="btn-danger w-full py-3 justify-center text-sm shadow-lg">
-              <span>Play Bomb Party</span>
-              <Flame size={16} />
+            <span className="badge badge-purple" style={{ alignSelf: 'flex-start', marginBottom: '0.75rem' }}>Competitive Ranking</span>
+            <h3 style={{ fontSize: '1.5rem', marginBottom: '0.75rem' }}>FIDE Elo Leaderboards</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, flex: 1, marginBottom: '2rem' }}>
+              Every match impacts your global rating. Challenge players worldwide in Classic Racing battles, earn rank badges from Bronze Initiate to Diamond Champion, and track subject-specific mastery in Math vs Reading/Writing.
+            </p>
+            <Link to="/leaderboards" className="btn btn-secondary btn-block">
+              <span>View Global Rankings</span>
+              <ArrowRight size={16} />
             </Link>
-          </GlassCard>
+          </div>
         </div>
       </section>
 
-      {/* Technical Excellence Footer Banner */}
-      <section className="px-4 lg:px-8 max-w-7xl mx-auto mt-20">
-        <div className="glass-panel p-8 md:p-10 rounded-3xl border border-white/10 bg-gradient-to-r from-cyan-900/20 via-indigo-900/20 to-purple-900/20 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
-          <div className="space-y-2 text-center md:text-left">
-            <h3 className="text-2xl font-bold text-white font-heading">Ready for Staging & Render Deployment?</h3>
-            <p className="text-sm text-slate-300 max-w-xl">
-              SATmoggle is structured as a cloud-native monorepo. Express serves the Vite frontend bundle in production while synchronizing real-time gameplay over Firebase RTDB.
+      {/* Cloud Sync & Firebase Callout Banner */}
+      <section className="glass-panel" style={{ marginTop: '5rem', background: 'linear-gradient(135deg, rgba(18, 24, 43, 0.8), rgba(26, 34, 60, 0.9))', border: '1px solid rgba(0, 242, 255, 0.2)' }}>
+        <div className="flex-between" style={{ flexWrap: 'wrap', gap: '2rem' }}>
+          <div style={{ maxWidth: '650px' }}>
+            <div className="flex-row" style={{ marginBottom: '0.75rem' }}>
+              <span className="badge badge-cyan">☁️ Cloud Native Architecture</span>
+              <span className="badge badge-emerald">Ready to Deploy</span>
+            </div>
+            <h3 style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>Frictionless Guest Play + Cloud Storage</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1.7 }}>
+              Play instantly as a guest without ever creating an account or entering passwords. When you are ready to preserve your Elo rating and stats across devices, click <strong>"Save Account"</strong> in the top menu to sync directly with Google Cloud Firestore and Realtime Database.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              onClick={onOpenFirebaseGuide}
-              className="btn-secondary px-6 py-3 text-sm text-amber-300 border-amber-500/40"
-            >
-              <ShieldCheck size={18} />
-              <span>Firebase Guide</span>
+
+          <div className="flex-col" style={{ width: '100%', maxWidth: '280px' }}>
+            <button onClick={onOpenAuth} className="btn btn-primary btn-block">
+              <span>✨ Create Free Account</span>
             </button>
-            <Link to="/leaderboards" className="btn-primary px-6 py-3 text-sm">
-              <Trophy size={18} />
-              <span>View Leaderboards</span>
-            </Link>
+            <button onClick={onOpenFirebaseGuide} className="btn btn-secondary btn-block" style={{ fontSize: '0.85rem' }}>
+              <span>⚙️ Firebase Setup Guide</span>
+            </button>
           </div>
         </div>
       </section>

@@ -1,155 +1,178 @@
 import React, { useState } from 'react';
 import Modal from './Modal';
-import { loginWithEmail, registerWithEmail, loginAnonymously, isDemoMode } from '../../services/firebase';
-import { User, Mail, Lock, Zap, ArrowRight, AlertCircle } from 'lucide-react';
+import { loginUser, registerUser, loginAnonymously, isDemoMode } from '../../services/firebase';
+import { Mail, Lock, User, ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
 
 export default function AuthModal({ isOpen, onClose, onSuccess }) {
-  const [tab, setTab] = useState('login'); // 'login' | 'register' | 'guest'
+  const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [username, setUsername] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
+    setLoading(true);
+
     try {
-      if (tab === 'login') {
-        await loginWithEmail(email, password);
-      } else if (tab === 'register') {
-        if (!username.trim()) throw new Error('Please enter a username.');
-        await registerWithEmail(email, password, username.trim());
-      } else if (tab === 'guest') {
-        await loginAnonymously(username.trim() || 'GuestChallenger');
+      if (isDemoMode) {
+        // Save mock account in localStorage
+        const customUser = {
+          uid: 'usr_' + Math.random().toString(36).substring(2, 8),
+          email: email || 'user@satmoggle.edu',
+          isAnonymous: false
+        };
+        const customProfile = {
+          uid: customUser.uid,
+          username: username || email.split('@')[0] || 'Challenger',
+          email: customUser.email,
+          eloRating: 1250,
+          gamesPlayed: 14,
+          wins: 9,
+          winRate: 64.3,
+          isGuest: false,
+          subjectStats: {
+            math: { correct: 48, total: 65, elo: 1265 },
+            english: { correct: 42, total: 55, elo: 1235 }
+          },
+          createdAt: new Date().toISOString()
+        };
+        localStorage.setItem('satmoggle_guest_user', JSON.stringify(customUser));
+        localStorage.setItem('satmoggle_guest_profile', JSON.stringify(customProfile));
+        if (onSuccess) onSuccess();
+        onClose();
+        return;
       }
-      onSuccess?.();
+
+      if (isRegister) {
+        if (!username.trim()) throw new Error('Please choose a username.');
+        await registerUser(email, password, username);
+      } else {
+        await loginUser(email, password);
+      }
+      if (onSuccess) onSuccess();
       onClose();
     } catch (err) {
-      setError(err.message || 'Authentication failed. Please check your credentials.');
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGuestContinue = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      if (!isDemoMode) {
+        await loginAnonymously();
+      }
+      if (onSuccess) onSuccess();
+      onClose();
+    } catch (err) {
+      setError('Could not continue as guest: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Access SATmoggle Arena">
-      {/* Tabs */}
-      <div className="flex rounded-xl bg-white/5 p-1 mb-6 border border-white/10">
-        <button
-          type="button"
-          onClick={() => { setTab('login'); setError(null); }}
-          className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all font-heading ${
-            tab === 'login' ? 'bg-cyan-500 text-black shadow-lg shadow-cyan-500/20' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          Sign In
-        </button>
-        <button
-          type="button"
-          onClick={() => { setTab('register'); setError(null); }}
-          className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all font-heading ${
-            tab === 'register' ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/20' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          Register
-        </button>
-        <button
-          type="button"
-          onClick={() => { setTab('guest'); setError(null); }}
-          className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all font-heading ${
-            tab === 'guest' ? 'bg-amber-500 text-black shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-white'
-          }`}
-        >
-          Guest
-        </button>
+    <Modal isOpen={isOpen} onClose={onClose} title={isRegister ? '✨ Create Account & Save Stats' : '⚡ Sign In to SATmoggle'}>
+      <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+          {isRegister
+            ? 'Create a free account to permanently save your Elo rating, battle history, and leaderboard rankings across all devices.'
+            : 'Welcome back! Sign in to continue climbing the SATmoggle global leaderboards.'}
+        </p>
       </div>
 
-      {isDemoMode && (
-        <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start gap-2">
-          <Zap size={16} className="flex-shrink-0 mt-0.5 text-amber-400 animate-pulse" />
-          <span>
-            <strong>Local Demo Mode Active:</strong> You can sign in or play as a guest instantly without needing cloud Firebase keys! Your stats will be saved locally.
-          </span>
-        </div>
-      )}
-
       {error && (
-        <div className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs flex items-start gap-2">
-          <AlertCircle size={16} className="flex-shrink-0 mt-0.5 text-red-400" />
+        <div style={{ padding: '0.85rem 1rem', background: 'rgba(255, 51, 102, 0.15)', border: '1px solid var(--accent-red)', borderRadius: '12px', color: '#ff8099', fontSize: '0.85rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span>{error}</span>
+          <button onClick={() => setError(null)} style={{ fontWeight: 700, textDecoration: 'underline' }}>Dismiss</button>
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {(tab === 'register' || tab === 'guest') && (
-          <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1">
-              {tab === 'guest' ? 'Player Handle (Optional)' : 'Username'}
-            </label>
-            <div className="relative">
-              <User size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
+      <form onSubmit={handleSubmit}>
+        {isRegister && (
+          <div className="form-group">
+            <label className="form-label">Challenger Username</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <User size={18} style={{ position: 'absolute', left: '1rem', color: 'var(--text-dim)' }} />
               <input
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={tab === 'guest' ? 'e.g. SpeedDemon99' : 'Choose a unique username'}
-                required={tab === 'register'}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-sm focus:border-cyan-400 focus:outline-none transition-colors"
+                placeholder="e.g. IvyBound_Sarah"
+                required
+                className="form-input"
+                style={{ paddingLeft: '2.75rem' }}
               />
             </div>
           </div>
         )}
 
-        {(tab === 'login' || tab === 'register') && (
-          <>
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Email Address</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="student@satmoggle.edu"
-                  required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-sm focus:border-cyan-400 focus:outline-none transition-colors"
-                />
-              </div>
-            </div>
+        <div className="form-group">
+          <label className="form-label">Email Address</label>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <Mail size={18} style={{ position: 'absolute', left: '1rem', color: 'var(--text-dim)' }} />
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="student@satmoggle.edu"
+              required
+              className="form-input"
+              style={{ paddingLeft: '2.75rem' }}
+            />
+          </div>
+        </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1">Password</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-sm focus:border-cyan-400 focus:outline-none transition-colors"
-                />
-              </div>
-            </div>
-          </>
-        )}
+        <div className="form-group">
+          <label className="form-label">Password</label>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <Lock size={18} style={{ position: 'absolute', left: '1rem', color: 'var(--text-dim)' }} />
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={6}
+              className="form-input"
+              style={{ paddingLeft: '2.75rem' }}
+            />
+          </div>
+        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="btn-primary w-full py-3 justify-center text-base mt-2 shadow-lg"
-        >
-          {loading ? (
-            <span>Authenticating...</span>
-          ) : (
-            <>
-              <span>{tab === 'login' ? 'Enter Arena' : tab === 'register' ? 'Create Account' : 'Play Instantly'}</span>
-              <ArrowRight size={18} />
-            </>
-          )}
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '2rem' }}>
+          <button type="submit" disabled={loading} className="btn btn-primary btn-block">
+            <span>{loading ? 'Processing...' : isRegister ? 'Create Account & Save Stats' : 'Sign In Now'}</span>
+            <ArrowRight size={18} />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleGuestContinue}
+            disabled={loading}
+            className="btn btn-secondary btn-block"
+            style={{ fontSize: '0.9rem' }}
+          >
+            <Sparkles size={16} style={{ color: 'var(--accent-amber)' }} />
+            <span>Continue Playing as Guest (No Account Required)</span>
+          </button>
+        </div>
+
+        <div style={{ marginTop: '1.5rem', textAlign: 'center', paddingTop: '1.25rem', borderTop: '1px solid var(--border-glass)' }}>
+          <button
+            type="button"
+            onClick={() => { setIsRegister(!isRegister); setError(null); }}
+            style={{ fontSize: '0.85rem', color: 'var(--accent-cyan)', fontWeight: 600, textDecoration: 'underline' }}
+          >
+            {isRegister ? 'Already have an account? Sign in instead' : "Don't have an account? Create one for free"}
+          </button>
+        </div>
       </form>
     </Modal>
   );

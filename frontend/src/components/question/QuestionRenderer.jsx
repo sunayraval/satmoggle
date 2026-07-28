@@ -39,13 +39,13 @@ export default function QuestionRenderer({ content, className = '' }) {
     replace: (domNode) => {
       // Enhance images with dark-mode contrast backdrop and responsive bounds
       if (domNode.name === 'img') {
-        const { src, alt, class: className } = domNode.attribs || {};
+        const { src, alt, class: clsName } = domNode.attribs || {};
         return (
-          <span className="inline-block my-2 max-w-full overflow-x-auto">
+          <span style={{ display: 'inline-block', margin: '0.75rem 0', maxWidth: '100%', overflowX: 'auto' }}>
             <img 
               src={src} 
               alt={alt || 'SAT Diagram'} 
-              className={`max-w-full h-auto rounded-lg bg-white/95 p-2 shadow-lg border border-white/20 ${className || ''}`}
+              style={{ maxWidth: '100%', height: 'auto', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.95)', padding: '0.75rem', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', border: '1px solid var(--border-glass)' }}
               loading="lazy"
             />
           </span>
@@ -55,7 +55,7 @@ export default function QuestionRenderer({ content, className = '' }) {
       // Enhance MathML tags to ensure crisp font sizing and cyan accent
       if (domNode.name === 'math') {
         return (
-          <span className="inline-block align-middle px-1 font-serif text-cyan-300 text-lg">
+          <span style={{ display: 'inline-block', verticalAlign: 'middle', padding: '0 0.25rem', fontFamily: 'serif', color: 'var(--accent-cyan)', fontSize: '1.15rem', fontWeight: 700 }}>
             {domToReact([domNode], options)}
           </span>
         );
@@ -64,8 +64,8 @@ export default function QuestionRenderer({ content, className = '' }) {
       // Preserve tables with clean borders
       if (domNode.name === 'table') {
         return (
-          <div className="overflow-x-auto my-4 w-full">
-            <table className="w-full text-left border-collapse border border-white/20 rounded-lg overflow-hidden">
+          <div style={{ overflowX: 'auto', margin: '1rem 0', width: '100%' }}>
+            <table className="custom-table" style={{ width: '100%', textAlign: 'left', borderCollapse: 'collapse', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--border-glass)' }}>
               {domToReact(domNode.children, options)}
             </table>
           </div>
@@ -75,7 +75,7 @@ export default function QuestionRenderer({ content, className = '' }) {
   };
 
   return (
-    <div className={`question-content font-body text-slate-100 ${className}`}>
+    <div className={`question-content ${className}`} style={{ color: 'var(--text-main)', lineHeight: 1.8 }}>
       {parse(processedHtml, options)}
     </div>
   );

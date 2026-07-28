@@ -6,9 +6,53 @@ import OptionGrid from '../components/question/OptionGrid';
 import GridInInput from '../components/question/GridInInput';
 import { subscribeToRoom, updateRoomStatus, updateUserEloAndStats } from '../services/firebase';
 import confetti from 'canvas-confetti';
-import { Bomb, Zap, Users, Trophy, Clock, CheckCircle2, Copy, Check, ArrowRight, ShieldAlert, Share2, Play, Flame, AlertTriangle } from 'lucide-react';
+import { Bomb, Zap, Users, Trophy, Clock, CheckCircle2, Copy, Check, ArrowRight, ShieldAlert, Play } from 'lucide-react';
 
-export default function Room({ user, profile, onOpenAuth }) {
+// Built-in Fallback questions for Bomb Party / Classic matches if offline
+const FALLBACK_BATTLE_QS = [
+  {
+    id: "battle_q_1",
+    type: "mcq",
+    skill_desc: "Algebra • Linear Equations",
+    stem: "If $4x - 7 = 21$, what is the value of $x$?",
+    answerOptions: [{ key: "A", text: "5" }, { key: "B", text: "7" }, { key: "C", text: "9" }, { key: "D", text: "11" }],
+    correctKey: "B"
+  },
+  {
+    id: "battle_q_2",
+    type: "mcq",
+    skill_desc: "Craft & Structure • Words in Context",
+    stem: "The architect's revolutionary design was praised for its ______ approach, seamlessly blending organic woodland elements with sleek steel structures.",
+    answerOptions: [{ key: "A", text: "derivative" }, { key: "B", text: "innovative" }, { key: "C", text: "obsolete" }, { key: "D", text: "monotonous" }],
+    correctKey: "B"
+  },
+  {
+    id: "battle_q_3",
+    type: "spr",
+    skill_desc: "Geometry • Area of Triangle",
+    stem: "A right triangle has base length 6 and height 8. What is the area of the triangle?",
+    keys: ["24", "24.0"],
+    correctKey: "24"
+  },
+  {
+    id: "battle_q_4",
+    type: "mcq",
+    skill_desc: "Advanced Math • Exponents",
+    stem: "Which expression is equivalent to $(3x^2)(4x^3)$?",
+    answerOptions: [{ key: "A", text: "$7x^5$" }, { key: "B", text: "$12x^5$" }, { key: "C", text: "$12x^6$" }, { key: "D", text: "$7x^6$" }],
+    correctKey: "B"
+  },
+  {
+    id: "battle_q_5",
+    type: "mcq",
+    skill_desc: "Expression of Ideas • Transitions",
+    stem: "In recent years, urban planners have heavily invested in protected bicycle lanes. ______, commuter cycling rates have surged by over 40% in participating cities.",
+    answerOptions: [{ key: "A", text: "As a result," }, { key: "B", text: "On the contrary," }, { key: "C", text: "Regardless," }, { key: "D", text: "For instance," }],
+    correctKey: "A"
+  }
+];
+
+export default function Room({ user, profile }) {
   const { roomCode } = useParams();
   const navigate = useNavigate();
   
@@ -26,10 +70,9 @@ export default function Room({ user, profile, onOpenAuth }) {
   const [bombTimeLeft, setBombTimeLeft] = useState(75);
   const [eloResults, setEloResults] = useState(null);
 
-  // Audio / Visual FX refs
   const explosionRef = useRef(false);
+  const currentUserId = user?.uid || profile?.uid || 'guest_unknown';
 
-  // Subscribe to real-time room state
   useEffect(() => {
     if (!roomCode) return;
     const unsubscribe = subscribeToRoom(roomCode, (roomData) => {
@@ -41,7 +84,6 @@ export default function Room({ user, profile, onOpenAuth }) {
       setRoom(roomData);
       setLoading(false);
 
-      // If room transitioned to PLAYING and we don't have questions loaded yet, let's load or sync
       if (roomData.status === 'PLAYING' && roomData.gameState?.questions && questions.length === 0) {
         setQuestions(roomData.gameState.questions);
         setCurrentIdx(0);
@@ -50,7 +92,6 @@ export default function Room({ user, profile, onOpenAuth }) {
         setIsEliminated(false);
       }
 
-      // If room transitioned to FINISHED, calculate Elo and trigger confetti
       if (roomData.status === 'FINISHED' && !eloResults && roomData.players) {
         triggerVictoryCelebration(roomData);
       }
@@ -58,7 +99,7 @@ export default function Room({ user, profile, onOpenAuth }) {
     return () => unsubscribe();
   }, [roomCode, questions.length, eloResults]);
 
-  // Bomb Party Countdown Timer Effect
+  // Bomb Party Countdown Timer
   useEffect(() => {
     if (!room || room.status !== 'PLAYING' || room.settings?.mode !== 'BOMB_PARTY') return;
     const gameState = room.gameState;
@@ -68,49 +109,61 @@ export default function Room({ user, profile, onOpenAuth }) {
       const remaining = Math.ceil((gameState.bombExpiresAt - Date.now()) / 1000);
       setBombTimeLeft(Math.max(0, remaining));
 
-      // If timer hits 0 and it's our turn, trigger elimination!
-      if (remaining <= 0 && gameState.activePlayerId === user?.uid && !explosionRef.current) {
+      if (remaining <= 0 && gameState.activePlayerId === currentUserId && !explosionRef.current) {
         explosionRef.current = true;
         handleBombExplosion();
       }
     }, 200);
-
     return () => clearInterval(interval);
-  }, [room, user]);
+  }, [room, currentUserId]);
 
   const copyRoomLink = () => {
-    const url = window.location.origin + `/lobby`;
-    navigator.clipboard.writeText(`Join my SATmoggle Battle! Code: ${roomCode}`);
+    navigator.clipboard.writeText(`Join my SATmoggle Battle! Room Code: ${roomCode}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const isHost = user && room && room.hostId === user.uid;
+  const isHost = room && room.hostId === currentUserId;
   const isBombParty = room?.settings?.mode === 'BOMB_PARTY';
   const playersList = room?.players ? Object.values(room.players) : [];
 
-  // Host Action: Start Match
+  // Start Match Action
   const handleStartMatch = async () => {
     if (!isHost) return;
     try {
       const { subject = 'both', difficulty = 'MIXED', gameSize = 10, bombTimer = 75 } = room.settings || {};
-      const count = isBombParty ? 30 : gameSize; // More questions for Bomb Party hot-potato loop
-      const res = await fetch(`/api/questions/random?subject=${subject}&difficulty=${difficulty}&count=${count}`);
-      const data = await res.json();
+      const count = isBombParty ? 30 : gameSize;
+      let loadedQs = [];
 
-      if (!data.success || !data.data || data.data.length === 0) {
-        throw new Error('Failed to load questions for battle.');
+      try {
+        const res = await fetch(`/api/questions/random?subject=${subject}&difficulty=${difficulty}&count=${count}`);
+        const data = await res.json();
+        if (data.success && data.data && data.data.length > 0) {
+          loadedQs = data.data.map((q, idx) => ({
+            ...q,
+            id: q.id || `bq_${idx+1}`,
+            stem: q.stem || q.prompt || q.content?.stem || 'Solve:',
+            answerOptions: q.answerOptions || q.answer?.choices || null,
+            correctKey: q.correctKey || q.answer?.correct_choice || (q.keys ? q.keys[0] : null)
+          }));
+        }
+      } catch (e) {
+        console.warn('API offline, using built-in battle questions');
+      }
+
+      if (loadedQs.length === 0) {
+        loadedQs = FALLBACK_BATTLE_QS;
       }
 
       const initialSurvivors = playersList.map(p => p.id);
       const firstPlayerId = initialSurvivors[0];
 
       const gameState = {
-        questions: data.data,
+        questions: loadedQs,
         activePlayerId: firstPlayerId,
         bombExpiresAt: Date.now() + bombTimer * 1000,
         round: 1,
-        timeDecay: 1, // Deduct 1s each round
+        timeDecay: 1,
         survivors: initialSurvivors,
         startedAt: Date.now()
       };
@@ -121,32 +174,28 @@ export default function Room({ user, profile, onOpenAuth }) {
     }
   };
 
-  // Answer Submission for Bomb Party Mode
   const handleBombPartyAnswer = async (selectedAns) => {
-    if (!room || !room.gameState || room.gameState.activePlayerId !== user?.uid) return;
+    if (!room || !room.gameState || room.gameState.activePlayerId !== currentUserId) return;
     const currentQ = questions[currentIdx];
     if (!currentQ) return;
 
     let isCorrect = false;
     if (Array.isArray(currentQ.keys) && currentQ.keys.length > 0) {
       isCorrect = currentQ.keys.some(k => String(k).trim().toLowerCase() === String(selectedAns).trim().toLowerCase());
-    } else if (currentQ.correct_answer && Array.isArray(currentQ.correct_answer)) {
-      isCorrect = currentQ.correct_answer.some(k => String(k).trim().toLowerCase() === String(selectedAns).trim().toLowerCase());
-    } else if (currentQ.answer?.correct_choice) {
-      isCorrect = String(selectedAns).trim().toLowerCase() === String(currentQ.answer.correct_choice).trim().toLowerCase();
+    } else {
+      isCorrect = String(selectedAns).trim().toLowerCase() === String(currentQ.correctKey).trim().toLowerCase();
     }
 
     if (isCorrect) {
-      // BOMB DEFUSED! Pass to next survivor
       explosionRef.current = false;
       const survivors = room.gameState.survivors || [];
-      const currentPos = survivors.indexOf(user.uid);
+      const currentPos = survivors.indexOf(currentUserId);
       const nextPos = (currentPos + 1) % survivors.length;
       const nextPlayerId = survivors[nextPos];
 
       const nextRound = (room.gameState.round || 1) + 1;
       const baseTimer = room.settings?.bombTimer || 75;
-      const nextTimer = Math.max(10, baseTimer - nextRound * (room.gameState.timeDecay || 1)); // Don't decay below 10s
+      const nextTimer = Math.max(10, baseTimer - nextRound * (room.gameState.timeDecay || 1));
 
       const newGameState = {
         ...room.gameState,
@@ -155,49 +204,31 @@ export default function Room({ user, profile, onOpenAuth }) {
         round: nextRound
       };
 
-      // Advance question index for next player
       setCurrentIdx(prev => (prev + 1) % questions.length);
       setUserCorrect(prev => prev + 1);
       await updateRoomStatus(roomCode, 'PLAYING', newGameState);
     } else {
-      // INCORRECT! Instant explosion in Bomb Party mode!
       handleBombExplosion();
     }
   };
 
   const handleBombExplosion = async () => {
     setIsEliminated(true);
-    const survivors = (room.gameState.survivors || []).filter(id => id !== user?.uid);
+    const survivors = (room.gameState.survivors || []).filter(id => id !== currentUserId);
 
     if (survivors.length <= 1) {
-      // WE HAVE A WINNER! End match
-      const winnerId = survivors[0] || user?.uid;
-      const newGameState = {
-        ...room.gameState,
-        survivors,
-        winnerId,
-        endedAt: Date.now()
-      };
-      await updateRoomStatus(roomCode, 'FINISHED', newGameState);
+      const winnerId = survivors[0] || currentUserId;
+      await updateRoomStatus(roomCode, 'FINISHED', { ...room.gameState, survivors, winnerId, endedAt: Date.now() });
     } else {
-      // Pass bomb to next remaining survivor
       const nextPlayerId = survivors[0];
       const nextRound = (room.gameState.round || 1) + 1;
       const baseTimer = room.settings?.bombTimer || 75;
       const nextTimer = Math.max(10, baseTimer - nextRound);
 
-      const newGameState = {
-        ...room.gameState,
-        survivors,
-        activePlayerId: nextPlayerId,
-        bombExpiresAt: Date.now() + nextTimer * 1000,
-        round: nextRound
-      };
-      await updateRoomStatus(roomCode, 'PLAYING', newGameState);
+      await updateRoomStatus(roomCode, 'PLAYING', { ...room.gameState, survivors, activePlayerId: nextPlayerId, bombExpiresAt: Date.now() + nextTimer * 1000, round: nextRound });
     }
   };
 
-  // Answer Submission for Classic Racing Mode
   const handleClassicAnswer = async (selectedAns) => {
     const currentQ = questions[currentIdx];
     if (!currentQ) return;
@@ -205,8 +236,8 @@ export default function Room({ user, profile, onOpenAuth }) {
     let isCorrect = false;
     if (Array.isArray(currentQ.keys) && currentQ.keys.length > 0) {
       isCorrect = currentQ.keys.some(k => String(k).trim().toLowerCase() === String(selectedAns).trim().toLowerCase());
-    } else if (currentQ.answer?.correct_choice) {
-      isCorrect = String(selectedAns).trim().toLowerCase() === String(currentQ.answer.correct_choice).trim().toLowerCase();
+    } else {
+      isCorrect = String(selectedAns).trim().toLowerCase() === String(currentQ.correctKey).trim().toLowerCase();
     }
 
     if (isCorrect) {
@@ -217,19 +248,16 @@ export default function Room({ user, profile, onOpenAuth }) {
     if (currentIdx < questions.length - 1) {
       setCurrentIdx(prev => prev + 1);
     } else {
-      // Finished all questions!
       if (isHost) {
         await updateRoomStatus(roomCode, 'FINISHED', { ...room.gameState, endedAt: Date.now() });
       } else {
-        setIsEliminated(true); // Mark locally finished as waiting
+        setIsEliminated(true);
       }
     }
   };
 
   const triggerVictoryCelebration = async (roomData) => {
-    confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
-    
-    // Calculate Elo for multiplayer
+    confetti({ particleCount: 150, spread: 90, origin: { y: 0.6 } });
     try {
       const playersArray = Object.values(roomData.players || {}).map((p, idx) => ({
         id: p.id,
@@ -246,208 +274,147 @@ export default function Room({ user, profile, onOpenAuth }) {
       const data = await res.json();
       if (data.success && data.data) {
         setEloResults(data.data);
-        // Save to user profile if applicable
-        const myElo = data.data.find(r => r.id === user?.uid);
-        if (myElo && user && profile) {
-          await updateUserEloAndStats(user.uid, {
-            eloDelta: myElo.eloDelta,
-            isWin: roomData.gameState?.winnerId === user.uid,
-            subject: roomData.settings?.subject === 'math' ? 'math' : 'english',
-            correctAnswers: userCorrect,
-            totalQuestions: questions.length
-          });
-        }
       }
     } catch (e) {
-      console.error('Failed to calculate Elo:', e);
+      console.warn('Elo calculation fallback');
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4 font-body text-slate-400 italic">
-        Connecting to SATmoggle Arena...
-      </div>
-    );
+    return <div className="container" style={{ padding: '6rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Connecting to SATmoggle Battle Arena...</div>;
   }
 
   if (error || !room) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 font-body">
-        <GlassCard className="max-w-md w-full text-center p-8 border-red-500/30">
-          <ShieldAlert size={48} className="text-red-400 mx-auto mb-4" />
-          <h3 className="text-xl font-bold text-white mb-2">Room Unavailable</h3>
-          <p className="text-xs text-slate-400 mb-6">{error || 'This battle room could not be found.'}</p>
-          <button onClick={() => navigate('/lobby')} className="btn-primary w-full py-3 justify-center text-sm">
-            Return to Lobby
-          </button>
-        </GlassCard>
+      <div className="container-narrow" style={{ padding: '5rem 1.5rem', textAlign: 'center' }}>
+        <div className="glass-panel" style={{ border: '1px solid var(--accent-red)' }}>
+          <ShieldAlert size={48} style={{ color: 'var(--accent-red)', margin: '0 auto 1rem' }} />
+          <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>Room Unavailable</h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '2rem' }}>{error || 'This battle room could not be found.'}</p>
+          <button onClick={() => navigate('/lobby')} className="btn btn-primary">Return to Lobby</button>
+        </div>
       </div>
     );
   }
 
-  // --- LOBBY VIEW (WAITING FOR HOST TO START) ---
+  // --- STAGE 1: LOBBY VIEW ---
   if (room.status === 'LOBBY') {
     return (
-      <div className="min-h-screen py-12 px-4 max-w-4xl mx-auto font-body">
-        <GlassCard className="p-8 md:p-10 border-cyan-500/30 shadow-2xl space-y-8">
-          {/* Top Info Banner */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-6 border-b border-white/10">
+      <div className="container-narrow" style={{ padding: '3rem 1.5rem 6rem' }}>
+        <div className="glass-panel" style={{ border: '1px solid rgba(0, 242, 255, 0.3)', boxShadow: 'var(--shadow-glow-cyan)' }}>
+          <div className="flex-between" style={{ flexWrap: 'wrap', gap: '1.5rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-glass)', marginBottom: '2rem' }}>
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400 font-heading">Room Code:</span>
-                <span className="font-mono font-black text-2xl text-cyan-300 px-3 py-1 rounded bg-black/50 border border-cyan-500/30">
+              <div className="flex-row" style={{ marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Room Code:</span>
+                <span style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '1.75rem', color: 'var(--accent-cyan)', padding: '0.3rem 0.8rem', background: 'rgba(0,0,0,0.5)', borderRadius: '10px', border: '1px solid var(--border-glass)' }}>
                   {roomCode}
                 </span>
               </div>
-              <h2 className="text-2xl font-extrabold text-white">Hosted by {room.hostName}</h2>
+              <h2 style={{ fontSize: '1.75rem' }}>Hosted by {room.hostName}</h2>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={copyRoomLink}
-                className="btn-secondary px-4 py-2.5 text-xs flex items-center gap-1.5 border-white/20"
-              >
-                {copied ? <Check size={14} className="text-emerald-400" /> : <Copy size={14} />}
-                <span>{copied ? 'Code Copied!' : 'Share Room Code'}</span>
-              </button>
-            </div>
+            <button onClick={copyRoomLink} className="btn btn-secondary">
+              {copied ? <Check size={16} style={{ color: 'var(--accent-emerald)' }} /> : <Copy size={16} />}
+              <span>{copied ? 'Code Copied!' : 'Share Room Code'}</span>
+            </button>
           </div>
 
-          {/* Game Settings Badges */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center">
-              <span className="text-[10px] uppercase text-slate-400 font-bold block">Mode</span>
-              <span className={`text-sm font-black uppercase font-heading flex items-center justify-center gap-1 mt-1 ${isBombParty ? 'text-pink-400' : 'text-purple-400'}`}>
-                {isBombParty ? <Bomb size={14} /> : <Zap size={14} />}
-                {isBombParty ? 'Bomb Party' : 'Classic Racing'}
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center">
-              <span className="text-[10px] uppercase text-slate-400 font-bold block">Subject</span>
-              <span className="text-sm font-black text-white uppercase font-heading mt-1 block">
-                {room.settings?.subject || 'Both'}
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center">
-              <span className="text-[10px] uppercase text-slate-400 font-bold block">Difficulty</span>
-              <span className="text-sm font-black text-amber-400 uppercase font-heading mt-1 block">
-                {room.settings?.difficulty || 'MIXED'}
-              </span>
-            </div>
-
-            <div className="p-3 rounded-xl bg-white/5 border border-white/10 text-center">
-              <span className="text-[10px] uppercase text-slate-400 font-bold block">{isBombParty ? 'Bomb Timer' : 'Questions'}</span>
-              <span className="text-sm font-black text-cyan-300 font-heading mt-1 block">
-                {isBombParty ? `${room.settings?.bombTimer || 75}s (1:15)` : `${room.settings?.gameSize || 10} Qs`}
-              </span>
-            </div>
-          </div>
-
-          {/* Players List */}
-          <div>
-            <h3 className="text-lg font-bold text-white font-heading mb-4 flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Users size={18} className="text-cyan-400" />
-                <span>Challengers in Arena ({playersList.length})</span>
-              </span>
-              <span className="text-xs text-slate-400 font-normal">Waiting for host to launch...</span>
-            </h3>
-
-            <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
-              {playersList.map((p, idx) => (
-                <div key={p.id || idx} className="p-4 rounded-xl bg-white/[0.04] border border-white/10 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-purple-600 to-cyan-400 flex items-center justify-center font-bold text-sm text-white shadow-md">
-                      {p.username ? p.username[0].toUpperCase() : 'P'}
-                    </div>
-                    <div>
-                      <div className="font-bold text-sm text-white flex items-center gap-2 font-heading">
-                        <span>{p.username || `Player_${idx+1}`}</span>
-                        {p.id === room.hostId && (
-                          <span className="px-1.5 py-0.5 rounded text-[9px] font-black bg-amber-400 text-black uppercase">Host</span>
-                        )}
-                      </div>
-                      <div className="text-[11px] font-semibold text-amber-400">⚡ {p.elo || 1200} Elo Rating</div>
-                    </div>
-                  </div>
-                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                    <CheckCircle2 size={14} /> Ready
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Host Action or Waiting Message */}
-          <div className="pt-4 border-t border-white/10 text-center">
-            {isHost ? (
-              <button
-                onClick={handleStartMatch}
-                className="btn-primary w-full py-4 justify-center text-lg font-heading shadow-xl animate-pulse"
-              >
-                <Play size={20} className="fill-black" />
-                <span>Launch SAT Battle Now</span>
-              </button>
-            ) : (
-              <div className="p-4 rounded-xl bg-white/5 border border-white/10 text-sm text-slate-300 font-semibold flex items-center justify-center gap-2">
-                <Clock size={16} className="text-cyan-400 animate-spin" />
-                <span>Waiting for Host ({room.hostName}) to start the match... Get ready!</span>
+          <div className="grid-4" style={{ marginBottom: '2.5rem' }}>
+            <div className="stat-box" style={{ padding: '1rem' }}>
+              <div className="stat-label">Mode</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: isBombParty ? 'var(--accent-pink)' : 'var(--accent-purple)', marginTop: '0.35rem' }}>
+                {isBombParty ? 'Bomb Party Royale' : 'Classic Battle'}
               </div>
-            )}
+            </div>
+            <div className="stat-box" style={{ padding: '1rem' }}>
+              <div className="stat-label">Subject</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'white', textTransform: 'uppercase', marginTop: '0.35rem' }}>{room.settings?.subject || 'Both'}</div>
+            </div>
+            <div className="stat-box" style={{ padding: '1rem' }}>
+              <div className="stat-label">Difficulty</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--accent-amber)', textTransform: 'uppercase', marginTop: '0.35rem' }}>{room.settings?.difficulty || 'MIXED'}</div>
+            </div>
+            <div className="stat-box" style={{ padding: '1rem' }}>
+              <div className="stat-label">{isBombParty ? 'Bomb Timer' : 'Questions'}</div>
+              <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--accent-cyan)', marginTop: '0.35rem' }}>{isBombParty ? `${room.settings?.bombTimer || 75}s` : `${room.settings?.gameSize || 10} Qs`}</div>
+            </div>
           </div>
-        </GlassCard>
+
+          <h3 style={{ fontSize: '1.3rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Users size={20} style={{ color: 'var(--accent-cyan)' }} />
+              <span>Challengers in Lobby ({playersList.length})</span>
+            </span>
+            <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Waiting for host...</span>
+          </h3>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '2.5rem', maxHeight: '280px', overflowY: 'auto' }}>
+            {playersList.map((p, idx) => (
+              <div key={p.id || idx} className="flex-between" style={{ padding: '1rem', borderRadius: '14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-glass)' }}>
+                <div className="flex-row">
+                  <div style={{ width: '40px', height: '40px', borderRadius: '12px', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, color: 'white' }}>
+                    {p.username ? p.username[0].toUpperCase() : 'P'}
+                  </div>
+                  <div>
+                    <div className="flex-row" style={{ fontWeight: 800, color: 'white', gap: '0.5rem' }}>
+                      <span>{p.username || `Player_${idx+1}`}</span>
+                      {p.id === room.hostId && <span className="badge badge-amber" style={{ padding: '0.15rem 0.5rem', fontSize: '0.65rem' }}>Host</span>}
+                    </div>
+                    <div style={{ fontSize: '0.8rem', color: 'var(--accent-amber)', fontWeight: 600 }}>⚡ {p.elo || 1200} Elo Rating</div>
+                  </div>
+                </div>
+                <span className="badge badge-emerald">✓ Ready</span>
+              </div>
+            ))}
+          </div>
+
+          {isHost ? (
+            <button onClick={handleStartMatch} className="btn btn-primary btn-lg btn-block shadow-glow-cyan">
+              <Play size={20} style={{ fill: '#06080f' }} />
+              <span>Launch SAT Battle Now</span>
+            </button>
+          ) : (
+            <div style={{ padding: '1.25rem', borderRadius: '14px', background: 'rgba(255,255,255,0.05)', textAlign: 'center', color: 'var(--text-muted)', fontWeight: 600 }}>
+              Waiting for Host ({room.hostName}) to launch the battle...
+            </div>
+          )}
+        </div>
       </div>
     );
   }
 
-  // --- FINISHED VIEW (VICTORY CELEBRATION & ELO LEADERBOARD) ---
+  // --- STAGE 2: FINISHED VIEW ---
   if (room.status === 'FINISHED') {
     const winner = playersList.find(p => p.id === room.gameState?.winnerId) || playersList[0];
-    const isWinner = winner?.id === user?.uid;
+    const isWinner = winner?.id === currentUserId;
 
     return (
-      <div className="min-h-screen py-12 px-4 max-w-3xl mx-auto font-body text-center">
-        <GlassCard className="p-8 md:p-12 border-amber-500/40 shadow-2xl space-y-8 relative overflow-hidden">
-          {/* Gold Glow */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-72 h-72 bg-amber-500/20 rounded-full blur-3xl -z-10 pointer-events-none animate-pulse" />
-
-          <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-600 flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(245,158,11,0.6)] animate-bounce">
-            <Trophy size={40} className="text-black fill-black" />
+      <div className="container-narrow" style={{ padding: '3rem 1.5rem 6rem', textAlign: 'center' }}>
+        <div className="glass-panel" style={{ border: '1px solid var(--accent-amber)', boxShadow: '0 0 50px rgba(255, 183, 3, 0.2)' }}>
+          <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg, var(--accent-amber), #ff8800)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', color: '#06080f', boxShadow: '0 0 35px rgba(255, 183, 3, 0.5)' }}>
+            <Trophy size={42} />
           </div>
+          <span className="badge badge-amber" style={{ marginBottom: '0.75rem' }}>{isBombParty ? 'Bomb Party Royale Champion' : 'Classic Battle Victor'}</span>
+          <h1 style={{ fontSize: '3rem', marginBottom: '0.5rem' }}>{isWinner ? '🎉 You Are the Champion!' : `${winner?.username || 'Challenger'} Wins!`}</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', marginBottom: '2.5rem' }}>{isBombParty ? 'Survived the ticking hot-potato elimination!' : 'High-speed accuracy prevailed!'}</p>
 
-          <div>
-            <span className="text-xs font-black uppercase tracking-widest px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 mb-3 inline-block">
-              {isBombParty ? 'Bomb Party Royale Champion' : 'Classic Battle Victor'}
-            </span>
-            <h1 className="text-4xl sm:text-5xl font-extrabold text-white font-heading">
-              {isWinner ? '🎉 You Are the Champion!' : `${winner?.username || 'Challenger'} Wins!`}
-            </h1>
-            <p className="text-sm text-slate-300 mt-2">
-              {isBombParty ? 'Survived the ticking hot-potato elimination!' : 'High-speed accuracy and mastery prevailed!'}
-            </p>
-          </div>
-
-          {/* Elo Adjustments Table */}
-          <div className="text-left space-y-3 pt-4 border-t border-white/10">
-            <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider font-heading">Global Elo Rating Adjustments:</h3>
-            <div className="space-y-2">
+          <div style={{ textAlign: 'left', marginBottom: '2.5rem', borderTop: '1px solid var(--border-glass)', paddingTop: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Global Elo Adjustments</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               {playersList.map((p, idx) => {
                 const eloData = eloResults?.find(r => r.id === p.id) || { eloDelta: p.id === winner?.id ? 18 : -8, newElo: (p.elo || 1200) + (p.id === winner?.id ? 18 : -8) };
                 const isPos = eloData.eloDelta >= 0;
 
                 return (
-                  <div key={p.id || idx} className={`p-4 rounded-xl border flex items-center justify-between ${p.id === winner?.id ? 'bg-amber-500/15 border-amber-500/40 shadow-md' : 'bg-white/5 border-white/10'}`}>
-                    <div className="flex items-center gap-3">
-                      <span className="font-bold font-mono text-sm text-slate-400">#{idx + 1}</span>
-                      <span className="font-bold text-white font-heading">{p.username || `Player_${idx+1}`}</span>
-                      {p.id === winner?.id && <span className="text-xs text-amber-400 font-bold">🥇 Winner</span>}
+                  <div key={p.id || idx} className="flex-between" style={{ padding: '1rem 1.25rem', borderRadius: '12px', background: p.id === winner?.id ? 'rgba(255, 183, 3, 0.12)' : 'rgba(255,255,255,0.03)', border: `1px solid ${p.id === winner?.id ? 'var(--accent-amber)' : 'var(--border-glass)'}` }}>
+                    <div className="flex-row">
+                      <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--text-dim)' }}>#{idx + 1}</span>
+                      <span style={{ fontWeight: 800, color: 'white', fontSize: '1.05rem' }}>{p.username || `Player_${idx+1}`}</span>
+                      {p.id === winner?.id && <span style={{ fontSize: '0.8rem', color: 'var(--accent-amber)', fontWeight: 800 }}>🥇 Winner</span>}
                     </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs text-slate-400">New Elo: <strong className="text-white font-mono">{eloData.newElo}</strong></span>
-                      <span className={`px-2.5 py-1 rounded font-bold font-mono text-xs ${isPos ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-red-500/20 text-red-300 border border-red-500/30'}`}>
+                    <div className="flex-row" style={{ gap: '1rem' }}>
+                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>New Elo: <strong style={{ color: 'white', fontFamily: 'monospace' }}>{eloData.newElo}</strong></span>
+                      <span className={`badge ${isPos ? 'badge-emerald' : 'badge-pink'}`}>
                         {isPos ? `+${eloData.eloDelta}` : eloData.eloDelta} Elo
                       </span>
                     </div>
@@ -457,186 +424,140 @@ export default function Room({ user, profile, onOpenAuth }) {
             </div>
           </div>
 
-          <div className="pt-6 flex flex-wrap justify-center gap-4">
-            <button onClick={() => navigate('/lobby')} className="btn-primary px-8 py-3.5 text-base">
+          <div className="flex-row" style={{ justifyContent: 'center' }}>
+            <button onClick={() => navigate('/lobby')} className="btn btn-primary btn-lg shadow-glow-cyan">
               <span>Return to Battle Lobby</span>
               <ArrowRight size={18} />
             </button>
             {isHost && (
-              <button
-                onClick={() => updateRoomStatus(roomCode, 'LOBBY')}
-                className="btn-secondary px-8 py-3.5 text-base border-white/20"
-              >
+              <button onClick={() => updateRoomStatus(roomCode, 'LOBBY')} className="btn btn-secondary btn-lg">
                 Play Another Match
               </button>
             )}
           </div>
-        </GlassCard>
+        </div>
       </div>
     );
   }
 
-  // --- PLAYING VIEW (BOMB PARTY ROYALE OR CLASSIC ARENA) ---
+  // --- STAGE 3: PLAYING VIEW ---
   const currentQ = questions[currentIdx];
-  const isSpr = currentQ?.type === 'spr' || (!currentQ?.answerOptions?.length && !currentQ?.answer?.choices);
+  const isSpr = currentQ?.type === 'spr' || !currentQ?.answerOptions;
   const activePlayer = playersList.find(p => p.id === room.gameState?.activePlayerId) || playersList[0];
-  const isMyTurn = activePlayer?.id === user?.uid;
+  const isMyTurn = activePlayer?.id === currentUserId;
 
   if (isBombParty) {
     return (
-      <div className="min-h-screen py-8 px-4 max-w-6xl mx-auto font-body space-y-6">
+      <div className="container-wide" style={{ padding: '2.5rem 2rem 6rem' }}>
         {/* Top Bomb Arena Header */}
-        <div className="glass-panel p-6 rounded-2xl border-pink-500/40 flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-          {/* Ticking background pulsation */}
-          <div className={`absolute inset-0 bg-gradient-to-r from-pink-600/10 via-red-600/10 to-transparent transition-opacity duration-300 ${bombTimeLeft < 15 ? 'opacity-100 animate-pulse' : 'opacity-20'}`} />
-
-          <div className="flex items-center gap-4 z-10">
-            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-tr from-pink-500 to-red-600 flex items-center justify-center text-black shadow-lg shadow-pink-500/30 ${bombTimeLeft < 15 ? 'animate-bounce' : 'animate-pulse-glow'}`}>
-              <Bomb size={32} />
+        <div className="glass-panel" style={{ padding: '1.5rem 2.5rem', marginBottom: '2.5rem', border: `1px solid ${bombTimeLeft < 15 ? 'var(--accent-red)' : 'rgba(255, 0, 127, 0.4)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem', boxShadow: bombTimeLeft < 15 ? '0 0 40px rgba(255, 51, 102, 0.4)' : 'var(--shadow-glow-pink)' }}>
+          <div className="flex-row" style={{ gap: '1.25rem' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '16px', background: 'linear-gradient(135deg, var(--accent-pink), var(--accent-red))', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+              <Bomb size={32} className={bombTimeLeft < 15 ? 'animate-bounce' : ''} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider px-2 py-0.5 rounded bg-pink-500 text-black">Round {room.gameState?.round || 1}</span>
-                <span className="text-xs text-slate-400 font-semibold">Decay: -1s / round</span>
+              <div className="flex-row" style={{ marginBottom: '0.25rem', gap: '0.5rem' }}>
+                <span className="badge badge-pink">Round {room.gameState?.round || 1}</span>
+                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Decay: -1s / round</span>
               </div>
-              <h2 className="text-2xl font-black text-white font-heading mt-1">
+              <h2 style={{ fontSize: '1.75rem', color: 'white', margin: 0 }}>
                 {isMyTurn ? '🔥 YOUR TURN! DEFUSE THE BOMB!' : `Waiting for ${activePlayer?.username || 'Challenger'}...`}
               </h2>
             </div>
           </div>
 
-          {/* Giant Countdown Clock */}
-          <div className="flex items-center gap-3 z-10 bg-black/60 px-6 py-3 rounded-2xl border border-white/10 shadow-inner">
-            <Clock size={24} className={bombTimeLeft < 15 ? 'text-red-500 animate-spin' : 'text-pink-400'} />
-            <div className="flex flex-col text-right">
-              <span className="text-[10px] uppercase font-bold text-slate-400">Bomb Explodes In</span>
-              <span className={`font-mono font-black text-3xl tracking-wider ${bombTimeLeft < 15 ? 'text-red-400 animate-pulse' : 'text-cyan-300'}`}>
+          <div className="flex-row" style={{ background: 'rgba(0,0,0,0.6)', padding: '0.75rem 1.5rem', borderRadius: '16px', border: '1px solid var(--border-glass)' }}>
+            <Clock size={24} style={{ color: bombTimeLeft < 15 ? 'var(--accent-red)' : 'var(--accent-pink)' }} />
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 800, color: 'var(--text-muted)' }}>Bomb Explodes In</div>
+              <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: '2.25rem', lineHeight: 1, color: bombTimeLeft < 15 ? 'var(--accent-red)' : 'var(--accent-cyan)' }}>
                 {Math.floor(bombTimeLeft / 60)}:{(bombTimeLeft % 60) < 10 ? '0' : ''}{bombTimeLeft % 60}
-              </span>
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Main Arena Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left / Center Question Box */}
-          <div className="lg:col-span-8">
+        {/* Arena Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '2.5rem', alignItems: 'start' }}>
+          <div>
             {isEliminated ? (
-              <GlassCard className="p-12 text-center border-red-500/40 space-y-6">
-                <div className="w-20 h-20 rounded-full bg-red-500/20 border border-red-500 text-red-400 flex items-center justify-center mx-auto animate-bounce">
+              <div className="glass-panel" style={{ padding: '4rem 2rem', textAlign: 'center', border: '1px solid var(--accent-red)' }}>
+                <div style={{ width: 80, height: 80, borderRadius: '50%', background: 'rgba(255, 51, 102, 0.2)', border: '1px solid var(--accent-red)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', color: 'var(--accent-red)' }}>
                   <Bomb size={40} />
                 </div>
-                <h3 className="text-3xl font-black text-white font-heading">BOOM! You Were Eliminated!</h3>
-                <p className="text-sm text-slate-300 max-w-md mx-auto">
+                <h2 style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>BOOM! You Were Eliminated!</h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '1.05rem', maxWidth: '500px', margin: '0 auto' }}>
                   The bomb timer expired or an incorrect answer triggered instant detonation! You are now in <strong>Spectator Mode</strong> cheering on the survivors.
                 </p>
-              </GlassCard>
+              </div>
             ) : !isMyTurn ? (
-              <GlassCard className="p-12 text-center border-white/10 space-y-4">
-                <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-cyan-400 mx-auto animate-spin">
+              <div className="glass-panel" style={{ padding: '5rem 2rem', textAlign: 'center' }}>
+                <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(0, 242, 255, 0.1)', border: '1px solid var(--accent-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.5rem', color: 'var(--accent-cyan)' }}>
                   <Clock size={32} />
                 </div>
-                <h3 className="text-2xl font-bold text-white font-heading">{activePlayer?.username} is defusing...</h3>
-                <p className="text-xs text-slate-400">Sit tight! If they defuse this question correctly, the hot-potato bomb passes to the next survivor in the ring.</p>
-              </GlassCard>
+                <h3 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>{activePlayer?.username} is defusing...</h3>
+                <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>Sit tight! If they defuse this question correctly, the hot-potato bomb passes to the next survivor in the ring.</p>
+              </div>
             ) : (
-              <GlassCard className="p-6 md:p-8 border-pink-500/40 shadow-2xl relative">
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-white/10">
-                  <span className="text-xs font-bold text-pink-400 uppercase tracking-wider font-heading">
+              <div className="glass-panel" style={{ padding: '2.5rem', border: '1px solid rgba(255, 0, 127, 0.4)', boxShadow: 'var(--shadow-glow-pink)' }}>
+                <div className="flex-between" style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-glass)' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--accent-pink)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     ⚡ Hot-Potato Question #{currentIdx + 1}
                   </span>
-                  <span className="text-xs text-slate-400 font-semibold">{currentQ?.skill_desc || 'SAT Math/English'}</span>
+                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontWeight: 600 }}>{currentQ?.skill_desc || 'SAT Math/English'}</span>
                 </div>
 
-                <div className="text-lg font-medium text-white mb-6 leading-relaxed">
-                  <QuestionRenderer content={currentQ?.stem || currentQ?.prompt} />
+                <div className="question-container">
+                  <QuestionRenderer content={currentQ?.stem} />
                 </div>
 
                 {isSpr ? (
-                  <GridInInput
-                    value=""
-                    onSubmit={(val) => handleBombPartyAnswer(val)}
-                  />
+                  <GridInInput value="" onSubmit={(val) => handleBombPartyAnswer(val)} />
                 ) : (
-                  <OptionGrid
-                    options={currentQ?.answerOptions || currentQ?.answer?.choices}
-                    onSelect={(ansKey) => handleBombPartyAnswer(ansKey)}
-                  />
+                  <OptionGrid options={currentQ?.answerOptions} onSelect={(key) => handleBombPartyAnswer(key)} />
                 )}
-              </GlassCard>
+              </div>
             )}
           </div>
 
           {/* Right Survivors Ring List */}
-          <div className="lg:col-span-4 space-y-4">
-            <GlassCard className="p-6 border-white/10 space-y-4">
-              <h4 className="font-bold text-white text-base font-heading flex items-center justify-between">
-                <span>Survivors Ring</span>
-                <span className="text-xs text-pink-400 font-bold">{(room.gameState?.survivors || []).length} Alive</span>
-              </h4>
+          <div className="glass-card" style={{ padding: '1.5rem' }}>
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Survivors Ring</span>
+              <span className="badge badge-pink">{(room.gameState?.survivors || []).length} Alive</span>
+            </h3>
 
-              <div className="space-y-2">
-                {playersList.map((p) => {
-                  const isAlive = (room.gameState?.survivors || []).includes(p.id);
-                  const isTurn = room.gameState?.activePlayerId === p.id;
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              {playersList.map((p) => {
+                const isAlive = (room.gameState?.survivors || []).includes(p.id);
+                const isTurn = room.gameState?.activePlayerId === p.id;
 
-                  return (
-                    <div key={p.id} className={`p-3 rounded-xl border flex items-center justify-between transition-all ${
-                      isTurn ? 'bg-pink-500/20 border-pink-500 shadow-md ring-1 ring-pink-400' :
-                      isAlive ? 'bg-white/5 border-white/10 text-white' : 'bg-black/40 border-white/5 opacity-40 text-slate-500 line-through'
-                    }`}>
-                      <div className="flex items-center gap-2.5">
-                        <span className="text-sm font-bold font-heading">{p.username}</span>
-                        {isTurn && <span className="px-1.5 py-0.2 rounded text-[9px] font-black bg-pink-500 text-black uppercase animate-pulse">Defusing</span>}
-                      </div>
-                      <span className="text-xs font-bold">{isAlive ? '🛡️ Alive' : '💥 Eliminated'}</span>
+                return (
+                  <div key={p.id} className="flex-between" style={{ padding: '0.85rem 1rem', borderRadius: '12px', background: isTurn ? 'rgba(255, 0, 127, 0.2)' : isAlive ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.5)', border: `1px solid ${isTurn ? 'var(--accent-pink)' : isAlive ? 'var(--border-glass)' : 'rgba(255,255,255,0.02)'}`, opacity: isAlive ? 1 : 0.4 }}>
+                    <div className="flex-row" style={{ gap: '0.75rem' }}>
+                      <span style={{ fontWeight: 800, fontSize: '0.95rem', color: isAlive ? 'white' : 'var(--text-dim)', textDecoration: isAlive ? 'none' : 'line-through' }}>{p.username}</span>
+                      {isTurn && <span className="badge badge-pink" style={{ padding: '0.15rem 0.4rem', fontSize: '0.65rem' }}>Defusing</span>}
                     </div>
-                  );
-                })}
-              </div>
-            </GlassCard>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: isAlive ? 'var(--accent-emerald)' : 'var(--accent-red)' }}>
+                      {isAlive ? '🛡️ Alive' : '💥 Out'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // Fallback for Classic Mode
+  // Fallback for Classic Battle
   return (
-    <div className="min-h-screen py-8 px-4 max-w-6xl mx-auto font-body space-y-6">
-      <header className="glass-panel p-4 rounded-2xl flex items-center justify-between">
-        <div className="font-heading font-black text-lg text-white">Classic Battle: Question {currentIdx + 1} / {questions.length}</div>
-        <div className="font-mono text-cyan-300 font-bold">Score: {userScore}</div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-8">
-          <GlassCard className="p-6">
-            <div className="text-lg text-white mb-6">
-              <QuestionRenderer content={currentQ?.stem || currentQ?.prompt} />
-            </div>
-            <OptionGrid
-              options={currentQ?.answerOptions || currentQ?.answer?.choices}
-              onSelect={(ansKey) => handleClassicAnswer(ansKey)}
-            />
-          </GlassCard>
-        </div>
-        <div className="lg:col-span-4">
-          <GlassCard className="p-6">
-            <h4 className="font-bold text-white mb-4">Live Racing Progress</h4>
-            {playersList.map((p, i) => (
-              <div key={i} className="mb-3">
-                <div className="flex justify-between text-xs text-white mb-1">
-                  <span>{p.username}</span>
-                  <span>{p.score || 0} pts</span>
-                </div>
-                <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-                  <div className="bg-cyan-400 h-full" style={{ width: `${((p.score || 0)/1000)*100}%` }} />
-                </div>
-              </div>
-            ))}
-          </GlassCard>
-        </div>
+    <div className="container" style={{ padding: '3rem 2rem' }}>
+      <div className="glass-panel">
+        <h2 style={{ fontSize: '2rem', marginBottom: '1rem' }}>Classic Battle: Question {currentIdx + 1} / {questions.length}</h2>
+        <div className="question-container"><QuestionRenderer content={currentQ?.stem} /></div>
+        <OptionGrid options={currentQ?.answerOptions} onSelect={(key) => handleClassicAnswer(key)} />
       </div>
     </div>
   );

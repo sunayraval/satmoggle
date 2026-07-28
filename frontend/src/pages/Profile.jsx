@@ -1,151 +1,153 @@
 import React from 'react';
-import GlassCard from '../components/common/GlassCard';
 import { logoutUser, isDemoMode } from '../services/firebase';
-import { User, Trophy, Zap, Flame, Shield, LogOut, CheckCircle, Award, BarChart3, RefreshCw } from 'lucide-react';
+import { User, Trophy, Zap, Flame, Shield, LogOut, CheckCircle, Award, BarChart2, RefreshCw, LogIn, Sparkles } from 'lucide-react';
 
 export default function Profile({ user, profile, onOpenAuth }) {
-  if (!user || !profile) {
-    return (
-      <div className="min-h-screen py-16 px-4 max-w-md mx-auto text-center font-body">
-        <GlassCard className="p-8 border-cyan-500/30 space-y-4">
-          <User size={48} className="text-cyan-400 mx-auto" />
-          <h2 className="text-2xl font-bold text-white font-heading">Sign In Required</h2>
-          <p className="text-sm text-slate-400">Please sign in or continue as a guest to view your Elo rating and performance analytics.</p>
-          <button onClick={onOpenAuth} className="btn-primary w-full py-3 justify-center text-sm">
-            Sign In Now
-          </button>
-        </GlassCard>
-      </div>
-    );
-  }
+  const elo = profile?.eloRating || 1200;
+  const username = profile?.username || user?.displayName || 'Guest Challenger';
+  const email = profile?.email || user?.email || 'guest@satmoggle.edu';
+  const isGuest = profile?.isGuest || user?.isAnonymous || !user;
 
-  const elo = profile.eloRating || 1200;
   const rankTitle = elo >= 1500 ? '💎 Diamond Master' : elo >= 1400 ? '⚡ Platinum Elite' : elo >= 1300 ? '🥇 Gold Challenger' : '🥈 Silver Competitor';
-  const mathStats = profile.subjectStats?.math || { correct: 45, total: 60, elo: 1260 };
-  const engStats = profile.subjectStats?.english || { correct: 38, total: 50, elo: 1240 };
+  const mathStats = profile?.subjectStats?.math || { correct: 48, total: 65, elo: 1265 };
+  const engStats = profile?.subjectStats?.english || { correct: 42, total: 55, elo: 1235 };
 
-  const mathAcc = mathStats.total > 0 ? ((mathStats.correct / mathStats.total) * 100).toFixed(1) : '75.0';
-  const engAcc = engStats.total > 0 ? ((engStats.correct / engStats.total) * 100).toFixed(1) : '76.0';
+  const mathAcc = mathStats.total > 0 ? ((mathStats.correct / mathStats.total) * 100).toFixed(1) : '73.8';
+  const engAcc = engStats.total > 0 ? ((engStats.correct / engStats.total) * 100).toFixed(1) : '76.4';
 
   const handleResetDemo = () => {
-    if (window.confirm('Reset local demo stats back to default 1250 Elo?')) {
-      localStorage.removeItem('satmoggle_mock_profile');
+    if (window.confirm('Reset local stats back to default 1250 Elo?')) {
+      localStorage.removeItem('satmoggle_guest_user');
+      localStorage.removeItem('satmoggle_guest_profile');
       window.location.reload();
     }
   };
 
   return (
-    <div className="min-h-screen py-12 px-4 max-w-4xl mx-auto font-body space-y-8">
-      {/* Top Banner */}
-      <GlassCard className="p-8 border-cyan-500/30 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-6 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -z-10 pointer-events-none" />
-
-        <div className="flex items-center gap-6">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-tr from-purple-600 via-indigo-500 to-cyan-400 flex items-center justify-center font-black text-3xl text-white shadow-xl shadow-cyan-500/20">
-            {profile.username ? profile.username[0].toUpperCase() : 'U'}
+    <div className="container-narrow" style={{ padding: '3rem 1.5rem 6rem' }}>
+      {/* Top Profile Banner */}
+      <div className="glass-panel" style={{ padding: '2.5rem', marginBottom: '2.5rem', border: '1px solid rgba(0, 242, 255, 0.3)', boxShadow: 'var(--shadow-glow-cyan)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '2rem' }}>
+        <div className="flex-row" style={{ gap: '1.5rem' }}>
+          <div style={{ width: 80, height: 80, borderRadius: '20px', background: 'linear-gradient(135deg, var(--accent-purple), var(--accent-cyan))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '2.5rem', color: 'white', boxShadow: '0 0 25px rgba(0, 242, 255, 0.3)' }}>
+            {username[0].toUpperCase()}
           </div>
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h1 className="text-3xl font-extrabold text-white font-heading">{profile.username}</h1>
-              <span className="px-2.5 py-0.5 rounded text-[10px] font-black bg-cyan-400 text-black uppercase tracking-wider">{rankTitle}</span>
+            <div className="flex-row" style={{ marginBottom: '0.35rem', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '2.25rem', margin: 0 }}>{username}</h1>
+              <span className="badge badge-cyan">{rankTitle}</span>
+              {isGuest && <span className="badge badge-amber">Guest Session</span>}
             </div>
-            <p className="text-xs text-slate-400 flex items-center gap-2">
-              <span>{profile.email || 'Guest Player Account'}</span>
-              <span>•</span>
-              <span>Joined {new Date(profile.createdAt || Date.now()).toLocaleDateString()}</span>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+              {email} • Active SATmoggle Competitor
             </p>
           </div>
         </div>
 
-        <div className="flex flex-col sm:items-end gap-3 w-full sm:w-auto">
-          <button
-            onClick={() => logoutUser().then(() => window.location.reload())}
-            className="btn-secondary px-5 py-2.5 text-xs border-red-500/30 text-red-300 hover:border-red-400 flex items-center justify-center gap-1.5"
-          >
-            <LogOut size={14} />
-            <span>Sign Out</span>
-          </button>
+        <div className="flex-row">
+          {isGuest ? (
+            <button onClick={onOpenAuth} className="btn btn-primary shadow-glow-cyan">
+              <LogIn size={18} />
+              <span>Save Account to Cloud</span>
+            </button>
+          ) : (
+            <button onClick={() => logoutUser().then(() => window.location.reload())} className="btn btn-secondary" style={{ color: 'var(--accent-red)', borderColor: 'rgba(255,51,102,0.3)' }}>
+              <LogOut size={16} />
+              <span>Sign Out</span>
+            </button>
+          )}
         </div>
-      </GlassCard>
-
-      {/* 3 Core Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <GlassCard className="text-center p-6 border-amber-500/30">
-          <div className="text-4xl font-black text-amber-400 font-heading font-mono">
-            ⚡ {elo}
-          </div>
-          <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mt-2">Global Elo Rating</div>
-        </GlassCard>
-
-        <GlassCard className="text-center p-6 border-emerald-500/30">
-          <div className="text-4xl font-black text-emerald-400 font-heading font-mono">
-            {profile.winRate || 66.7}%
-          </div>
-          <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mt-2">
-            Win Rate ({profile.wins || 8}W / {(profile.gamesPlayed || 12) - (profile.wins || 8)}L)
-          </div>
-        </GlassCard>
-
-        <GlassCard className="text-center p-6 border-purple-500/30">
-          <div className="text-4xl font-black text-purple-400 font-heading font-mono">
-            {profile.gamesPlayed || 12}
-          </div>
-          <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mt-2">Total Matches Played</div>
-        </GlassCard>
       </div>
 
-      {/* Subject Breakdown */}
-      <GlassCard className="p-8 border-white/10 space-y-6">
-        <h3 className="text-xl font-bold text-white font-heading flex items-center gap-2">
-          <BarChart3 size={20} className="text-cyan-400" />
+      {/* 3 Core Stat Cards */}
+      <div className="grid-3" style={{ marginBottom: '2.5rem' }}>
+        <div className="glass-card" style={{ textAlign: 'center', borderColor: 'rgba(255, 183, 3, 0.4)' }}>
+          <div style={{ fontSize: '2.75rem', fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-amber)', marginBottom: '0.25rem' }}>
+            ⚡ {elo}
+          </div>
+          <div className="stat-label">Global FIDE Elo Rating</div>
+        </div>
+
+        <div className="glass-card" style={{ textAlign: 'center', borderColor: 'rgba(0, 245, 160, 0.4)' }}>
+          <div style={{ fontSize: '2.75rem', fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-emerald)', marginBottom: '0.25rem' }}>
+            {profile?.winRate || 64.3}%
+          </div>
+          <div className="stat-label">Win Rate ({profile?.wins || 9}W / {(profile?.gamesPlayed || 14) - (profile?.wins || 9)}L)</div>
+        </div>
+
+        <div className="glass-card" style={{ textAlign: 'center', borderColor: 'rgba(157, 78, 221, 0.4)' }}>
+          <div style={{ fontSize: '2.75rem', fontWeight: 900, fontFamily: 'monospace', color: 'var(--accent-purple)', marginBottom: '0.25rem' }}>
+            {profile?.gamesPlayed || 14}
+          </div>
+          <div className="stat-label">Total Matches Played</div>
+        </div>
+      </div>
+
+      {/* Subject Mastery Breakdown */}
+      <div className="glass-panel" style={{ padding: '2.5rem', marginBottom: '2.5rem' }}>
+        <h3 style={{ fontSize: '1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+          <BarChart2 size={22} style={{ color: 'var(--accent-cyan)' }} />
           <span>Subject Mastery Breakdown</span>
         </h3>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid-2">
           {/* Math */}
-          <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white text-base font-heading">SAT Math & Grid-ins</span>
-              <span className="font-mono text-emerald-400 font-bold text-sm">⚡ {mathStats.elo || 1260} Elo</span>
+          <div style={{ padding: '1.5rem', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)' }}>
+            <div className="flex-between" style={{ marginBottom: '0.75rem' }}>
+              <span style={{ fontWeight: 800, fontSize: '1.15rem', color: 'white' }}>SAT Math & Grid-ins</span>
+              <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent-emerald)', fontSize: '1rem' }}>⚡ {mathStats.elo} Elo</span>
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex-between" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
               <span>Accuracy: {mathAcc}%</span>
               <span>{mathStats.correct} / {mathStats.total} Correct</span>
             </div>
-            <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-              <div className="bg-emerald-400 h-full" style={{ width: `${mathAcc}%` }} />
+            <div style={{ width: '100%', background: 'rgba(255,255,255,0.08)', height: '8px', borderRadius: '99px', overflow: 'hidden' }}>
+              <div style={{ background: 'var(--accent-emerald)', height: '100%', width: `${mathAcc}%` }} />
             </div>
           </div>
 
           {/* Reading & Writing */}
-          <div className="p-5 rounded-2xl bg-white/[0.03] border border-white/10 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-white text-base font-heading">Reading & Writing</span>
-              <span className="font-mono text-purple-400 font-bold text-sm">⚡ {engStats.elo || 1240} Elo</span>
+          <div style={{ padding: '1.5rem', borderRadius: '16px', background: 'rgba(255,255,255,0.02)', border: '1px solid var(--border-glass)' }}>
+            <div className="flex-between" style={{ marginBottom: '0.75rem' }}>
+              <span style={{ fontWeight: 800, fontSize: '1.15rem', color: 'white' }}>Reading & Writing</span>
+              <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--accent-purple)', fontSize: '1rem' }}>⚡ {engStats.elo} Elo</span>
             </div>
-            <div className="flex items-center justify-between text-xs text-slate-400">
+            <div className="flex-between" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
               <span>Accuracy: {engAcc}%</span>
               <span>{engStats.correct} / {engStats.total} Correct</span>
             </div>
-            <div className="w-full bg-white/10 h-2 rounded-full overflow-hidden">
-              <div className="bg-purple-500 h-full" style={{ width: `${engAcc}%` }} />
+            <div style={{ width: '100%', background: 'rgba(255,255,255,0.08)', height: '8px', borderRadius: '99px', overflow: 'hidden' }}>
+              <div style={{ background: 'var(--accent-purple)', height: '100%', width: `${engAcc}%` }} />
             </div>
           </div>
         </div>
-      </GlassCard>
+      </div>
 
-      {/* Demo Mode Actions */}
-      {isDemoMode && (
-        <div className="p-6 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-4">
-          <div className="text-xs text-amber-200">
-            <strong>Local Demo Storage:</strong> Your profile and Elo rating are currently stored in your browser's LocalStorage for instant testing.
+      {/* Guest Cloud Callout */}
+      {isGuest && (
+        <div className="glass-panel" style={{ padding: '2rem', background: 'linear-gradient(135deg, rgba(255, 183, 3, 0.1), rgba(18, 24, 43, 0.8))', border: '1px solid rgba(255, 183, 3, 0.4)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem' }}>
+          <div>
+            <div className="flex-row" style={{ marginBottom: '0.5rem' }}>
+              <span className="badge badge-amber">⚠️ Temporary Guest Session</span>
+            </div>
+            <h4 style={{ fontSize: '1.35rem', marginBottom: '0.5rem', color: 'white' }}>Want to save your {elo} Elo Rating permanently?</h4>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', maxWidth: '550px' }}>
+              Create a free account with your email to link your guest statistics and compete on the permanent global leaderboards across any device.
+            </p>
           </div>
-          <button onClick={handleResetDemo} className="btn-secondary text-xs px-4 py-2 border-amber-500/40 text-amber-300 flex items-center gap-1.5 whitespace-nowrap">
-            <RefreshCw size={14} />
-            <span>Reset Demo Stats</span>
+          <button onClick={onOpenAuth} className="btn btn-gold">
+            <Sparkles size={18} />
+            <span>Link Account Now</span>
           </button>
         </div>
       )}
+
+      {/* Reset Demo Option */}
+      <div style={{ marginTop: '2.5rem', textAlign: 'center' }}>
+        <button onClick={handleResetDemo} style={{ fontSize: '0.85rem', color: 'var(--text-dim)', textDecoration: 'underline', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+          <RefreshCw size={14} />
+          <span>Reset Local Test Statistics</span>
+        </button>
+      </div>
     </div>
   );
 }
